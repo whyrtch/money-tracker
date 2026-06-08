@@ -48,16 +48,33 @@ import {
   workspaceName,
 } from "./data";
 import { hasFirebaseConfig, logout, signInWithGoogle } from "./lib/firebase";
-import type { AppState, AppUser, AppView, Debt, Transaction, TransactionType } from "./types";
+import type { AppState, AppUser, AppView, Debt, DebtType, Transaction, TransactionType } from "./types";
+
+type FormMode =
+  | "expense"
+  | "income"
+  | "debt"
+  | "receivable"
+  | "debt_installment"
+  | "receivable_installment"
+  | "payment";
 
 type FormState = {
+  mode: FormMode;
   title: string;
   amount: string;
   type: TransactionType;
   category: string;
   account: string;
   date: string;
+  dueDate: string;
   note: string;
+  debtId: string;
+  installmentCount: string;
+  monthlyAmount: string;
+  dueDay: string;
+  fineAmount: string;
+  autoTransaction: boolean;
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -88,14 +105,58 @@ const loadInitialUser = (): AppUser | null => {
 };
 
 const emptyForm = (): FormState => ({
+  mode: "expense",
   title: "",
   amount: "",
   type: "expense",
   category: "food",
   account: "dana",
   date: today(),
+  dueDate: today(),
   note: "",
+  debtId: "",
+  installmentCount: "1",
+  monthlyAmount: "",
+  dueDay: "12",
+  fineAmount: "",
+  autoTransaction: true,
 });
+
+const moneyValue = (value: string) => Number(value.replace(/[^\d]/g, ""));
+
+const makeDebtId = (debts: Debt[], name: string) => {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "debt";
+  let id = base;
+  let counter = 2;
+  while (debts.some((debt) => debt.id === id)) {
+    id = `${base}-${counter}`;
+    counter += 1;
+  }
+  return id;
+};
+
+const installmentDueDate = (startDate: string, sequence: number, dueDay: number) => {
+  const start = new Date(`${startDate}T00:00:00`);
+  const target = new Date(start.getFullYear(), start.getMonth() + sequence - 1, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(Math.max(dueDay, 1), lastDay));
+  return target.toISOString().slice(0, 10);
+};
+
+const makeDebtInstallments = (startDate: string, count: number, dueDay: number, monthlyAmount: number, totalAmount: number) =>
+  Array.from({ length: count }, (_, index) => {
+    const remainingBeforePayment = Math.max(0, totalAmount - monthlyAmount * index);
+    const amount = index === count - 1 ? remainingBeforePayment : Math.min(monthlyAmount, remainingBeforePayment);
+    return {
+      id: String(index + 1),
+      dueDate: installmentDueDate(startDate, index + 1, dueDay),
+      amount,
+      paid: false,
+    };
+  });
 
 const navItems: { id: AppView; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Beranda", icon: Home },
@@ -151,69 +212,140 @@ function App() {
   };
 
   const openForm = (type: TransactionType = "expense") => {
-    setForm({ ...emptyForm(), type, category: type === "income" ? "income" : "food" });
+    setForm({ ...emptyForm(), mode: type, type, category: type === "income" ? "income" : "food" });
     setShowForm(true);
   };
 
-  const addTransaction = (event: React.FormEvent) => {
+  const openPaymentForm = (debtId: string) => {
+    const debt = state.debts.find((item) => item.id === debtId);
+    setForm({
+      ...emptyForm(),
+      mode: "payment",
+      debtId,
+      amount: String(debt?.monthlyAmount || debt?.remainingAmount || ""),
+    });
+    setShowForm(true);
+  };
+
+  const saveForm = (event: React.FormEvent) => {
     event.preventDefault();
-    const amount = Number(form.amount.replace(/[^\d]/g, ""));
-    if (!form.title.trim() || amount <= 0) return;
-    const transaction: Transaction = {
-      id: makeTransactionId(state.transactions),
-      date: form.date,
-      title: form.title.trim(),
-      type: form.type,
-      amount,
-      category: form.category,
-      account: form.account,
-      note: form.note.trim() || undefined,
-      source: "web",
-    };
-    setState((current) => ({ ...current, transactions: [transaction, ...current.transactions] }));
+    const amount = moneyValue(form.amount);
+    const fineAmount = moneyValue(form.fineAmount);
+    const title = form.title.trim();
+
+    if (form.mode === "expense" || form.mode === "income") {
+      if (!title || amount <= 0) return;
+      const transaction: Transaction = {
+        id: makeTransactionId(state.transactions),
+        date: form.date,
+        title,
+        type: form.type,
+        amount,
+        category: form.category,
+        account: form.account,
+        note: form.note.trim() || undefined,
+        source: "web",
+      };
+      setState((current) => ({ ...current, transactions: [transaction, ...current.transactions] }));
+      setShowForm(false);
+      return;
+    }
+
+    if (
+      form.mode === "debt" ||
+      form.mode === "receivable" ||
+      form.mode === "debt_installment" ||
+      form.mode === "receivable_installment"
+    ) {
+      if (!title || amount <= 0) return;
+      const debtType: DebtType = form.mode.startsWith("receivable") ? "receivable" : "debt";
+      const isInstallment = form.mode.endsWith("installment");
+      const installmentCount = Math.max(1, Number(form.installmentCount) || 1);
+      const monthlyAmount = isInstallment ? moneyValue(form.monthlyAmount) || Math.ceil(amount / installmentCount) : 0;
+      const dueDay = Math.min(31, Math.max(1, Number(form.dueDay) || new Date(`${form.date}T00:00:00`).getDate()));
+      const debt: Debt = {
+        id: makeDebtId(state.debts, title),
+        name: title,
+        type: debtType,
+        mode: isInstallment ? "installment" : "simple",
+        originalAmount: amount,
+        remainingAmount: amount,
+        monthlyAmount,
+        finePaid: fineAmount || undefined,
+        startDate: form.date,
+        dueDate: isInstallment ? undefined : form.dueDate,
+        dueDay: isInstallment ? dueDay : undefined,
+        installments: isInstallment ? makeDebtInstallments(form.date, installmentCount, dueDay, monthlyAmount, amount) : [],
+      };
+      setState((current) => ({ ...current, debts: [debt, ...current.debts] }));
+      setView("debts");
+      setShowForm(false);
+      return;
+    }
+
+    if (form.mode === "payment") {
+      if (!form.debtId || amount <= 0) return;
+      setState((current) => {
+        const selected = current.debts.find((debt) => debt.id === form.debtId);
+        if (!selected) return current;
+        const paymentAmount = Math.min(amount, selected.remainingAmount);
+        const transactions: Transaction[] = [];
+
+        if (form.autoTransaction && paymentAmount > 0) {
+          transactions.push({
+            id: makeTransactionId([...current.transactions, ...transactions]),
+            date: form.date,
+            title: `Bayar ${selected.name}`,
+            type: selected.type === "debt" ? "expense" : "income",
+            amount: paymentAmount,
+            category: selected.type === "debt" ? "debt-payment" : "receivable",
+            account: form.account,
+            note: form.note.trim() || `Pembayaran ${selected.name}`,
+            source: "web",
+          });
+        }
+
+        if (form.autoTransaction && fineAmount > 0) {
+          transactions.push({
+            id: makeTransactionId([...current.transactions, ...transactions]),
+            date: form.date,
+            title: `Denda ${selected.name}`,
+            type: selected.type === "debt" ? "expense" : "income",
+            amount: fineAmount,
+            category: "fine",
+            account: form.account,
+            note: `Denda pembayaran ${selected.name}`,
+            source: "web",
+          });
+        }
+
+        const debts = current.debts.map((debt) => {
+          if (debt.id !== form.debtId) return debt;
+          let paidRemainder = paymentAmount;
+          return {
+            ...debt,
+            remainingAmount: Math.max(0, debt.remainingAmount - paymentAmount),
+            finePaid: (debt.finePaid ?? 0) + fineAmount,
+            installments: debt.installments.map((installment) => {
+              if (installment.paid || paidRemainder < installment.amount) return installment;
+              paidRemainder -= installment.amount;
+              return { ...installment, paid: true, finePaid: (installment.finePaid ?? 0) + fineAmount };
+            }),
+          };
+        });
+
+        return { debts, transactions: [...transactions, ...current.transactions] };
+      });
+      setView("debts");
+      setShowForm(false);
+      return;
+    }
+
     setShowForm(false);
   };
 
   const deleteTransaction = (id: string) => {
     setState((current) => ({ ...current, transactions: current.transactions.filter((item) => item.id !== id) }));
-  };
-
-  const payNextInstallment = (debtId: string) => {
-    setState((current) => {
-      let createdTransaction: Transaction | null = null;
-      const debts = current.debts.map((debt) => {
-        if (debt.id !== debtId) return debt;
-        const nextInstallment = debt.installments.find((item) => !item.paid);
-        if (!nextInstallment) return debt;
-
-        const paymentAmount = Math.min(nextInstallment.amount, debt.remainingAmount);
-        createdTransaction = {
-          id: makeTransactionId(current.transactions),
-          date: today(),
-          title: `Bayar ${debt.name}`,
-          type: debt.type === "debt" ? "expense" : "income",
-          amount: paymentAmount,
-          category: debt.type === "debt" ? "debt-payment" : "receivable",
-          account: "bank",
-          source: "web",
-          note: `Pembayaran cicilan ${debt.name}`,
-        };
-
-        const remainingAmount = Math.max(0, debt.remainingAmount - paymentAmount);
-        return {
-          ...debt,
-          remainingAmount,
-          installments: debt.installments.map((item) =>
-            item.id === nextInstallment.id ? { ...item, paid: true } : item,
-          ),
-        };
-      });
-
-      return {
-        debts,
-        transactions: createdTransaction ? [createdTransaction, ...current.transactions] : current.transactions,
-      };
-    });
   };
 
   const exportCsv = () => {
@@ -289,7 +421,7 @@ function App() {
             incomeBreakdown={incomeBreakdown}
           />
         )}
-        {view === "debts" && <DebtsView debts={state.debts} onPay={payNextInstallment} />}
+        {view === "debts" && <DebtsView debts={state.debts} onPay={openPaymentForm} />}
         {view === "more" && <MoreView user={user} onNavigate={setView} onLogout={startLogout} />}
       </main>
 
@@ -303,8 +435,9 @@ function App() {
         <TransactionForm
           form={form}
           setForm={setForm}
+          debts={state.debts}
           onClose={() => setShowForm(false)}
-          onSubmit={addTransaction}
+          onSubmit={saveForm}
         />
       )}
     </div>
@@ -690,6 +823,13 @@ function DebtCard({ debt, onPay }: { debt: Debt; onPay: () => void }) {
   const paid = debt.originalAmount - debt.remainingAmount;
   const progress = Math.round((paid / debt.originalAmount) * 100);
   const next = debt.installments.find((item) => !item.paid);
+  const dueLabel = next
+    ? dateMonthDay(next.dueDate)
+    : debt.dueDate
+      ? dateMonthDay(debt.dueDate)
+      : debt.remainingAmount > 0
+        ? "-"
+        : "Lunas";
 
   return (
     <article className="debt-card">
@@ -700,7 +840,7 @@ function DebtCard({ debt, onPay }: { debt: Debt; onPay: () => void }) {
           </span>
           <h2>{debt.name}</h2>
         </div>
-        <button className="primary-button" type="button" onClick={onPay} disabled={!next}>
+        <button className="primary-button" type="button" onClick={onPay} disabled={debt.remainingAmount <= 0}>
           <Check size={18} />
           Bayar
         </button>
@@ -708,7 +848,7 @@ function DebtCard({ debt, onPay }: { debt: Debt; onPay: () => void }) {
       <div className="debt-stats">
         <Metric icon={CircleDollarSign} label="Total awal" value={currency(debt.originalAmount)} />
         <Metric icon={ArrowUpRight} label="Sisa" value={currency(debt.remainingAmount)} tone="expense" />
-        <Metric icon={CalendarDays} label="Jatuh tempo" value={next ? dateMonthDay(next.dueDate) : "Lunas"} />
+        <Metric icon={CalendarDays} label="Jatuh tempo" value={dueLabel} />
       </div>
       <ProgressBar percent={progress} color="#0f9f61" />
       <div className="installment-list">
@@ -772,15 +912,50 @@ function MoreView({
 function TransactionForm({
   form,
   setForm,
+  debts,
   onClose,
   onSubmit,
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
+  debts: Debt[];
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
+  const isCashTransaction = form.mode === "expense" || form.mode === "income";
+  const isDebtCreation =
+    form.mode === "debt" ||
+    form.mode === "receivable" ||
+    form.mode === "debt_installment" ||
+    form.mode === "receivable_installment";
+  const isInstallmentCreation = form.mode === "debt_installment" || form.mode === "receivable_installment";
+  const isPayment = form.mode === "payment";
   const availableCategories = categories.filter((item) => item.kind === form.type || item.kind === "both");
+  const activeDebts = debts.filter((debt) => debt.remainingAmount > 0);
+  const selectedDebt = activeDebts.find((debt) => debt.id === form.debtId) ?? activeDebts[0];
+
+  const selectMode = (mode: FormMode) => {
+    const next = emptyForm();
+    if (mode === "income") {
+      setForm({ ...next, mode, type: "income", category: "income" });
+      return;
+    }
+    if (mode === "payment") {
+      setForm({ ...next, mode, debtId: activeDebts[0]?.id ?? "", amount: String(activeDebts[0]?.monthlyAmount || "") });
+      return;
+    }
+    setForm({ ...next, mode });
+  };
+
+  const modeOptions: { id: FormMode; label: string; icon: typeof ReceiptText }[] = [
+    { id: "expense", label: "Keluar", icon: ArrowUpRight },
+    { id: "income", label: "Masuk", icon: ArrowDownLeft },
+    { id: "debt", label: "Hutang", icon: Landmark },
+    { id: "receivable", label: "Piutang", icon: Wallet },
+    { id: "debt_installment", label: "Cicilan Hutang", icon: CalendarDays },
+    { id: "receivable_installment", label: "Cicilan Piutang", icon: BadgePlus },
+    { id: "payment", label: "Bayar", icon: Check },
+  ];
 
   return (
     <div className="modal-backdrop">
@@ -791,67 +966,197 @@ function TransactionForm({
             <ChevronDown size={20} />
           </button>
         </div>
-        <div className="segmented full">
-          <button
-            className={form.type === "expense" ? "active" : ""}
-            type="button"
-            onClick={() => setForm((current) => ({ ...current, type: "expense", category: "food" }))}
-          >
-            Keluar
-          </button>
-          <button
-            className={form.type === "income" ? "active" : ""}
-            type="button"
-            onClick={() => setForm((current) => ({ ...current, type: "income", category: "income" }))}
-          >
-            Masuk
-          </button>
+
+        <div className="mode-grid">
+          {modeOptions.map((mode) => {
+            const Icon = mode.icon;
+            return (
+              <button
+                className={form.mode === mode.id ? "active" : ""}
+                key={mode.id}
+                type="button"
+                onClick={() => selectMode(mode.id)}
+              >
+                <Icon size={18} />
+                <span>{mode.label}</span>
+              </button>
+            );
+          })}
         </div>
-        <label>
-          Judul
-          <input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
-        </label>
-        <label>
-          Nominal
-          <input
-            inputMode="numeric"
-            value={form.amount}
-            onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
-          />
-        </label>
-        <div className="form-grid">
-          <label>
-            Tanggal
-            <input
-              type="date"
-              value={form.date}
-              onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
-            />
-          </label>
-          <label>
-            Akun
-            <select value={form.account} onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}>
-              {["cash", "bank", "dana", "gopay", "ovo"].map((account) => (
-                <option key={account} value={account}>
-                  {account}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <label>
-          Kategori
-          <select
-            value={form.category}
-            onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-          >
-            {availableCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+
+        {isCashTransaction && (
+          <>
+            <label>
+              Judul
+              <input
+                value={form.title}
+                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              />
+            </label>
+            <label>
+              Nominal
+              <input
+                inputMode="numeric"
+                value={form.amount}
+                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+              />
+            </label>
+            <div className="form-grid">
+              <FormDateField form={form} setForm={setForm} label="Tanggal" />
+              <AccountField form={form} setForm={setForm} />
+            </div>
+            <label>
+              Kategori
+              <select
+                value={form.category}
+                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+              >
+                {availableCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
+        {isDebtCreation && (
+          <>
+            <label>
+              Nama
+              <input
+                value={form.title}
+                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              />
+            </label>
+            <label>
+              Total
+              <input
+                inputMode="numeric"
+                value={form.amount}
+                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+              />
+            </label>
+            <div className="form-grid">
+              <FormDateField form={form} setForm={setForm} label="Tanggal mulai" />
+              {isInstallmentCreation ? (
+                <label>
+                  Jatuh tempo
+                  <input
+                    inputMode="numeric"
+                    max={31}
+                    min={1}
+                    type="number"
+                    value={form.dueDay}
+                    onChange={(event) => setForm((current) => ({ ...current, dueDay: event.target.value }))}
+                  />
+                </label>
+              ) : (
+                <label>
+                  Jatuh tempo
+                  <input
+                    type="date"
+                    value={form.dueDate}
+                    onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
+                  />
+                </label>
+              )}
+            </div>
+            {isInstallmentCreation && (
+              <div className="form-grid">
+                <label>
+                  Cicilan
+                  <input
+                    inputMode="numeric"
+                    value={form.monthlyAmount}
+                    onChange={(event) => setForm((current) => ({ ...current, monthlyAmount: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Jumlah cicilan
+                  <input
+                    inputMode="numeric"
+                    min={1}
+                    type="number"
+                    value={form.installmentCount}
+                    onChange={(event) => setForm((current) => ({ ...current, installmentCount: event.target.value }))}
+                  />
+                </label>
+              </div>
+            )}
+            <label>
+              Denda awal
+              <input
+                inputMode="numeric"
+                value={form.fineAmount}
+                onChange={(event) => setForm((current) => ({ ...current, fineAmount: event.target.value }))}
+              />
+            </label>
+          </>
+        )}
+
+        {isPayment && (
+          <>
+            {activeDebts.length ? (
+              <>
+                <label>
+                  Hutang/Piutang
+                  <select
+                    value={form.debtId || selectedDebt?.id || ""}
+                    onChange={(event) => {
+                      const debt = activeDebts.find((item) => item.id === event.target.value);
+                      setForm((current) => ({
+                        ...current,
+                        debtId: event.target.value,
+                        amount: String(debt?.monthlyAmount || ""),
+                      }));
+                    }}
+                  >
+                    {activeDebts.map((debt) => (
+                      <option key={debt.id} value={debt.id}>
+                        {debt.name} - {currency(debt.remainingAmount)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="form-grid">
+                  <label>
+                    Nominal bayar
+                    <input
+                      inputMode="numeric"
+                      value={form.amount}
+                      onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Denda
+                    <input
+                      inputMode="numeric"
+                      value={form.fineAmount}
+                      onChange={(event) => setForm((current) => ({ ...current, fineAmount: event.target.value }))}
+                    />
+                  </label>
+                </div>
+                <div className="form-grid">
+                  <FormDateField form={form} setForm={setForm} label="Tanggal bayar" />
+                  <AccountField form={form} setForm={setForm} />
+                </div>
+                <label className="checkbox-field">
+                  <input
+                    checked={form.autoTransaction}
+                    type="checkbox"
+                    onChange={(event) => setForm((current) => ({ ...current, autoTransaction: event.target.checked }))}
+                  />
+                  <span>Buat transaksi otomatis</span>
+                </label>
+              </>
+            ) : (
+              <div className="empty-state">Belum ada hutang atau piutang aktif.</div>
+            )}
+          </>
+        )}
+
         <label>
           Catatan
           <textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} />
@@ -862,6 +1167,48 @@ function TransactionForm({
         </button>
       </form>
     </div>
+  );
+}
+
+function FormDateField({
+  form,
+  setForm,
+  label,
+}: {
+  form: FormState;
+  setForm: React.Dispatch<React.SetStateAction<FormState>>;
+  label: string;
+}) {
+  return (
+    <label>
+      {label}
+      <input
+        type="date"
+        value={form.date}
+        onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
+      />
+    </label>
+  );
+}
+
+function AccountField({
+  form,
+  setForm,
+}: {
+  form: FormState;
+  setForm: React.Dispatch<React.SetStateAction<FormState>>;
+}) {
+  return (
+    <label>
+      Akun
+      <select value={form.account} onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}>
+        {["cash", "bank", "dana", "gopay", "ovo"].map((account) => (
+          <option key={account} value={account}>
+            {account}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

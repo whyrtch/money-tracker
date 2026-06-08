@@ -43,6 +43,9 @@ export type Debt = {
   remainingAmount: number;
   monthlyAmount: number;
   finePaid?: number;
+  startDate?: string;
+  dueDate?: string;
+  dueDay?: number;
   installments: DebtInstallment[];
 };
 

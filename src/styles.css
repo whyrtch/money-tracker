@@ -179,7 +179,8 @@ p {
 .nav-button,
 .shortcut-row button,
 .section-header button,
-.more-grid button {
+.more-grid button,
+.mode-grid button {
   border: 1px solid transparent;
   border-radius: 8px;
 }
@@ -188,7 +189,8 @@ p {
 .icon-text-button,
 .nav-button,
 .shortcut-row button,
-.more-grid button {
+.more-grid button,
+.mode-grid button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -420,6 +422,27 @@ p {
 
 .shortcut-row button {
   min-height: 58px;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mode-grid button {
+  justify-content: flex-start;
+  min-height: 50px;
+  color: #425047;
+  background: #f7faf8;
+  border-color: #dfe8e4;
+  font-size: 0.82rem;
+}
+
+.mode-grid button.active {
+  color: #0f7d4e;
+  background: #e9f7ef;
+  border-color: #9bdcbb;
 }
 
 .content-grid,
@@ -704,6 +727,17 @@ textarea {
   font-weight: 800;
 }
 
+.transaction-modal .checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-field input {
+  width: 18px;
+  min-height: 18px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -784,6 +818,7 @@ textarea {
   .summary-grid,
   .shortcut-row,
   .more-grid,
+  .mode-grid,
   .form-grid {
     grid-template-columns: 1fr;
   }
