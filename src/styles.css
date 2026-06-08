@@ -165,7 +165,6 @@ p {
 .top-actions,
 .toolbar,
 .shortcut-row,
-.summary-grid,
 .debt-stats {
   display: flex;
   align-items: center;
@@ -343,6 +342,9 @@ p {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+  gap: 10px;
 }
 
 .summary-grid.flat {
@@ -353,6 +355,7 @@ p {
   display: flex;
   align-items: center;
   gap: 10px;
+  height: 100%;
   min-width: 0;
   padding: 14px;
   color: #203127;
@@ -361,6 +364,7 @@ p {
 }
 
 .summary-hero .metric {
+  min-height: 88px;
   color: #ffffff;
   background: rgba(255, 255, 255, 0.13);
 }
@@ -398,6 +402,10 @@ p {
   overflow-wrap: anywhere;
 }
 
+.metric div {
+  min-width: 0;
+}
+
 .metric small {
   color: inherit;
   opacity: 0.72;
@@ -406,6 +414,11 @@ p {
 
 .metric strong {
   margin-top: 2px;
+}
+
+.summary-hero .metric strong {
+  font-size: 0.94rem;
+  line-height: 1.2;
 }
 
 .shortcut-row {
@@ -823,6 +836,14 @@ textarea {
 
   .summary-main h2 {
     font-size: 2.2rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .summary-hero .metric {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
   }
 }
 
