@@ -744,6 +744,22 @@ textarea {
   gap: 10px;
 }
 
+.form-errors {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  color: #9d3850;
+  background: #ffe5e8;
+  border: 1px solid #ffc4cc;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.form-errors p {
+  margin: 0;
+}
+
 .empty-state {
   padding: 18px;
   color: #667568;

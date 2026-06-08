@@ -124,6 +124,70 @@ const emptyForm = (): FormState => ({
 
 const moneyValue = (value: string) => Number(value.replace(/[^\d]/g, ""));
 
+const isValidDate = (value: string) => !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
+
+const isCategoryAllowed = (categoryId: string, type: TransactionType) => {
+  const category = categories.find((item) => item.id === categoryId);
+  if (!category) return false;
+  return category.kind === type || category.kind === "both";
+};
+
+const validateForm = (form: FormState, debts: Debt[]) => {
+  const errors: string[] = [];
+  const amount = moneyValue(form.amount);
+  const monthlyAmount = moneyValue(form.monthlyAmount);
+  const installmentCount = Number(form.installmentCount);
+  const dueDay = Number(form.dueDay);
+  const activeDebts = debts.filter((debt) => debt.remainingAmount > 0);
+  const selectedDebt = activeDebts.find((debt) => debt.id === form.debtId);
+
+  if (form.mode === "expense" || form.mode === "income") {
+    if (!form.title.trim()) errors.push("Judul wajib diisi.");
+    if (amount <= 0) errors.push("Nominal wajib lebih dari 0.");
+    if (!isValidDate(form.date)) errors.push("Tanggal wajib valid.");
+    if (!form.account) errors.push("Akun wajib dipilih.");
+    if (!form.category || !isCategoryAllowed(form.category, form.type)) errors.push("Kategori harus sesuai tipe transaksi.");
+  }
+
+  if (
+    form.mode === "debt" ||
+    form.mode === "receivable" ||
+    form.mode === "debt_installment" ||
+    form.mode === "receivable_installment"
+  ) {
+    if (!form.title.trim()) errors.push("Nama hutang/piutang wajib diisi.");
+    if (amount <= 0) errors.push("Total wajib lebih dari 0.");
+    if (!isValidDate(form.date)) errors.push("Tanggal mulai wajib valid.");
+
+    if (form.mode === "debt" || form.mode === "receivable") {
+      if (!isValidDate(form.dueDate)) errors.push("Tanggal jatuh tempo wajib valid.");
+      if (isValidDate(form.date) && isValidDate(form.dueDate) && form.dueDate < form.date) {
+        errors.push("Jatuh tempo tidak boleh sebelum tanggal mulai.");
+      }
+    } else {
+      if (!Number.isInteger(installmentCount) || installmentCount <= 0) errors.push("Jumlah cicilan wajib minimal 1.");
+      if (monthlyAmount <= 0) errors.push("Nominal cicilan wajib lebih dari 0.");
+      if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) errors.push("Tanggal jatuh tempo cicilan harus 1-31.");
+      if (monthlyAmount > 0 && installmentCount > 0 && monthlyAmount * installmentCount < amount) {
+        errors.push("Total jadwal cicilan harus menutup total hutang/piutang.");
+      }
+    }
+  }
+
+  if (form.mode === "payment") {
+    if (!activeDebts.length) errors.push("Belum ada hutang atau piutang aktif untuk dibayar.");
+    if (!form.debtId || !selectedDebt) errors.push("Pilih hutang/piutang yang akan dibayar.");
+    if (amount <= 0) errors.push("Nominal bayar wajib lebih dari 0.");
+    if (selectedDebt && amount > selectedDebt.remainingAmount) {
+      errors.push("Nominal bayar tidak boleh melebihi sisa hutang/piutang.");
+    }
+    if (!isValidDate(form.date)) errors.push("Tanggal bayar wajib valid.");
+    if (!form.account) errors.push("Akun wajib dipilih.");
+  }
+
+  return errors;
+};
+
 const makeDebtId = (debts: Debt[], name: string) => {
   const base = name
     .toLowerCase()
@@ -181,6 +245,7 @@ function App() {
   const [state, setState] = useState<AppState>(loadInitialState);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -212,12 +277,14 @@ function App() {
   };
 
   const openForm = (type: TransactionType = "expense") => {
+    setFormErrors([]);
     setForm({ ...emptyForm(), mode: type, type, category: type === "income" ? "income" : "food" });
     setShowForm(true);
   };
 
   const openPaymentForm = (debtId: string) => {
     const debt = state.debts.find((item) => item.id === debtId);
+    setFormErrors([]);
     setForm({
       ...emptyForm(),
       mode: "payment",
@@ -229,6 +296,12 @@ function App() {
 
   const saveForm = (event: React.FormEvent) => {
     event.preventDefault();
+    const validationErrors = validateForm(form, state.debts);
+    if (validationErrors.length) {
+      setFormErrors(validationErrors);
+      return;
+    }
+
     const amount = moneyValue(form.amount);
     const fineAmount = moneyValue(form.fineAmount);
     const title = form.title.trim();
@@ -436,7 +509,12 @@ function App() {
           form={form}
           setForm={setForm}
           debts={state.debts}
-          onClose={() => setShowForm(false)}
+          errors={formErrors}
+          onClearErrors={() => setFormErrors([])}
+          onClose={() => {
+            setFormErrors([]);
+            setShowForm(false);
+          }}
           onSubmit={saveForm}
         />
       )}
@@ -913,12 +991,16 @@ function TransactionForm({
   form,
   setForm,
   debts,
+  errors,
+  onClearErrors,
   onClose,
   onSubmit,
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
   debts: Debt[];
+  errors: string[];
+  onClearErrors: () => void;
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
@@ -933,18 +1015,22 @@ function TransactionForm({
   const availableCategories = categories.filter((item) => item.kind === form.type || item.kind === "both");
   const activeDebts = debts.filter((debt) => debt.remainingAmount > 0);
   const selectedDebt = activeDebts.find((debt) => debt.id === form.debtId) ?? activeDebts[0];
+  const updateForm: React.Dispatch<React.SetStateAction<FormState>> = (value) => {
+    onClearErrors();
+    setForm(value);
+  };
 
   const selectMode = (mode: FormMode) => {
     const next = emptyForm();
     if (mode === "income") {
-      setForm({ ...next, mode, type: "income", category: "income" });
+      updateForm({ ...next, mode, type: "income", category: "income" });
       return;
     }
     if (mode === "payment") {
-      setForm({ ...next, mode, debtId: activeDebts[0]?.id ?? "", amount: String(activeDebts[0]?.monthlyAmount || "") });
+      updateForm({ ...next, mode, debtId: activeDebts[0]?.id ?? "", amount: String(activeDebts[0]?.monthlyAmount || "") });
       return;
     }
-    setForm({ ...next, mode });
+    updateForm({ ...next, mode });
   };
 
   const modeOptions: { id: FormMode; label: string; icon: typeof ReceiptText }[] = [
@@ -959,7 +1045,7 @@ function TransactionForm({
 
   return (
     <div className="modal-backdrop">
-      <form className="transaction-modal" onSubmit={onSubmit}>
+      <form className="transaction-modal" noValidate onSubmit={onSubmit}>
         <div className="modal-head">
           <h2>Catat transaksi</h2>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Tutup">
@@ -984,32 +1070,43 @@ function TransactionForm({
           })}
         </div>
 
+        {errors.length > 0 && (
+          <div className="form-errors" role="alert" aria-live="polite">
+            {errors.map((error) => (
+              <p key={error}>{error}</p>
+            ))}
+          </div>
+        )}
+
         {isCashTransaction && (
           <>
             <label>
               Judul
               <input
+                required
                 value={form.title}
-                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                onChange={(event) => updateForm((current) => ({ ...current, title: event.target.value }))}
               />
             </label>
             <label>
               Nominal
               <input
                 inputMode="numeric"
+                required
                 value={form.amount}
-                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
               />
             </label>
             <div className="form-grid">
-              <FormDateField form={form} setForm={setForm} label="Tanggal" />
-              <AccountField form={form} setForm={setForm} />
+              <FormDateField form={form} setForm={updateForm} label="Tanggal" />
+              <AccountField form={form} setForm={updateForm} />
             </div>
             <label>
               Kategori
               <select
+                required
                 value={form.category}
-                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+                onChange={(event) => updateForm((current) => ({ ...current, category: event.target.value }))}
               >
                 {availableCategories.map((category) => (
                   <option key={category.id} value={category.id}>
@@ -1026,20 +1123,22 @@ function TransactionForm({
             <label>
               Nama
               <input
+                required
                 value={form.title}
-                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                onChange={(event) => updateForm((current) => ({ ...current, title: event.target.value }))}
               />
             </label>
             <label>
               Total
               <input
                 inputMode="numeric"
+                required
                 value={form.amount}
-                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
               />
             </label>
             <div className="form-grid">
-              <FormDateField form={form} setForm={setForm} label="Tanggal mulai" />
+              <FormDateField form={form} setForm={updateForm} label="Tanggal mulai" />
               {isInstallmentCreation ? (
                 <label>
                   Jatuh tempo
@@ -1047,18 +1146,20 @@ function TransactionForm({
                     inputMode="numeric"
                     max={31}
                     min={1}
+                    required
                     type="number"
                     value={form.dueDay}
-                    onChange={(event) => setForm((current) => ({ ...current, dueDay: event.target.value }))}
+                    onChange={(event) => updateForm((current) => ({ ...current, dueDay: event.target.value }))}
                   />
                 </label>
               ) : (
                 <label>
                   Jatuh tempo
                   <input
+                    required
                     type="date"
                     value={form.dueDate}
-                    onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
+                    onChange={(event) => updateForm((current) => ({ ...current, dueDate: event.target.value }))}
                   />
                 </label>
               )}
@@ -1069,8 +1170,9 @@ function TransactionForm({
                   Cicilan
                   <input
                     inputMode="numeric"
+                    required
                     value={form.monthlyAmount}
-                    onChange={(event) => setForm((current) => ({ ...current, monthlyAmount: event.target.value }))}
+                    onChange={(event) => updateForm((current) => ({ ...current, monthlyAmount: event.target.value }))}
                   />
                 </label>
                 <label>
@@ -1078,9 +1180,10 @@ function TransactionForm({
                   <input
                     inputMode="numeric"
                     min={1}
+                    required
                     type="number"
                     value={form.installmentCount}
-                    onChange={(event) => setForm((current) => ({ ...current, installmentCount: event.target.value }))}
+                    onChange={(event) => updateForm((current) => ({ ...current, installmentCount: event.target.value }))}
                   />
                 </label>
               </div>
@@ -1090,7 +1193,7 @@ function TransactionForm({
               <input
                 inputMode="numeric"
                 value={form.fineAmount}
-                onChange={(event) => setForm((current) => ({ ...current, fineAmount: event.target.value }))}
+                onChange={(event) => updateForm((current) => ({ ...current, fineAmount: event.target.value }))}
               />
             </label>
           </>
@@ -1103,10 +1206,11 @@ function TransactionForm({
                 <label>
                   Hutang/Piutang
                   <select
+                    required
                     value={form.debtId || selectedDebt?.id || ""}
                     onChange={(event) => {
                       const debt = activeDebts.find((item) => item.id === event.target.value);
-                      setForm((current) => ({
+                      updateForm((current) => ({
                         ...current,
                         debtId: event.target.value,
                         amount: String(debt?.monthlyAmount || ""),
@@ -1125,8 +1229,9 @@ function TransactionForm({
                     Nominal bayar
                     <input
                       inputMode="numeric"
+                      required
                       value={form.amount}
-                      onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                      onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
                     />
                   </label>
                   <label>
@@ -1134,19 +1239,19 @@ function TransactionForm({
                     <input
                       inputMode="numeric"
                       value={form.fineAmount}
-                      onChange={(event) => setForm((current) => ({ ...current, fineAmount: event.target.value }))}
+                      onChange={(event) => updateForm((current) => ({ ...current, fineAmount: event.target.value }))}
                     />
                   </label>
                 </div>
                 <div className="form-grid">
-                  <FormDateField form={form} setForm={setForm} label="Tanggal bayar" />
-                  <AccountField form={form} setForm={setForm} />
+                  <FormDateField form={form} setForm={updateForm} label="Tanggal bayar" />
+                  <AccountField form={form} setForm={updateForm} />
                 </div>
                 <label className="checkbox-field">
                   <input
                     checked={form.autoTransaction}
                     type="checkbox"
-                    onChange={(event) => setForm((current) => ({ ...current, autoTransaction: event.target.checked }))}
+                    onChange={(event) => updateForm((current) => ({ ...current, autoTransaction: event.target.checked }))}
                   />
                   <span>Buat transaksi otomatis</span>
                 </label>
@@ -1159,7 +1264,7 @@ function TransactionForm({
 
         <label>
           Catatan
-          <textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} />
+          <textarea value={form.note} onChange={(event) => updateForm((current) => ({ ...current, note: event.target.value }))} />
         </label>
         <button className="primary-button large-button" type="submit">
           <Check size={18} />
@@ -1183,6 +1288,7 @@ function FormDateField({
     <label>
       {label}
       <input
+        required
         type="date"
         value={form.date}
         onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
@@ -1201,7 +1307,7 @@ function AccountField({
   return (
     <label>
       Akun
-      <select value={form.account} onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}>
+      <select required value={form.account} onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}>
         {["cash", "bank", "dana", "gopay", "ovo"].map((account) => (
           <option key={account} value={account}>
             {account}
