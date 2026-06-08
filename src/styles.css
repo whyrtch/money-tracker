@@ -104,8 +104,7 @@ p {
 }
 
 .brand-icon,
-.category-icon,
-.telegram-orb {
+.category-icon {
   display: inline-grid;
   flex: 0 0 auto;
   place-items: center;
@@ -179,10 +178,8 @@ p {
 .avatar-button,
 .nav-button,
 .shortcut-row button,
-.telegram-banner,
 .section-header button,
-.more-grid button,
-.guide-list button {
+.more-grid button {
   border: 1px solid transparent;
   border-radius: 8px;
 }
@@ -191,9 +188,7 @@ p {
 .icon-text-button,
 .nav-button,
 .shortcut-row button,
-.telegram-banner,
-.more-grid button,
-.guide-list button {
+.more-grid button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -417,9 +412,7 @@ p {
 }
 
 .shortcut-row button,
-.telegram-banner,
-.more-grid button,
-.guide-list button {
+.more-grid button {
   color: #26352b;
   background: #ffffff;
   border-color: #dde7e1;
@@ -427,15 +420,6 @@ p {
 
 .shortcut-row button {
   min-height: 58px;
-}
-
-.telegram-banner {
-  justify-content: space-between;
-  min-height: 64px;
-  padding: 0 18px;
-  color: #0a6d9d;
-  background: #eaf7fb;
-  border-color: #ccecf5;
 }
 
 .content-grid,
@@ -459,7 +443,6 @@ p {
 
 .section-header h2,
 .debt-card h2,
-.telegram-panel h2,
 .account-panel h2,
 .modal-head h2 {
   font-size: 1.1rem;
@@ -662,45 +645,12 @@ textarea {
   background: #ffe5e8;
 }
 
-.telegram-panel {
-  display: grid;
-  gap: 16px;
-  max-width: 720px;
-}
-
-.telegram-orb {
-  width: 58px;
-  height: 58px;
-  color: #0a6d9d;
-  background: #e4f6fb;
-  border-radius: 8px;
-}
-
-.chat-box {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
-}
-
-.bot-reply {
-  display: grid;
-  gap: 5px;
-  max-width: 420px;
-  padding: 14px;
-  color: #143024;
-  background: #edf8f1;
-  border-radius: 8px;
-}
-
-.guide-list,
 .more-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.guide-list button,
 .more-grid button {
   justify-content: flex-start;
   min-height: 54px;
@@ -833,7 +783,6 @@ textarea {
 
   .summary-grid,
   .shortcut-row,
-  .guide-list,
   .more-grid,
   .form-grid {
     grid-template-columns: 1fr;
@@ -852,10 +801,6 @@ textarea {
   .transaction-row .icon-button {
     grid-column: 2;
     justify-self: start;
-  }
-
-  .chat-box {
-    grid-template-columns: 1fr;
   }
 
   .toolbar > * {

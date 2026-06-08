@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   BadgePlus,
   BarChart3,
-  Bot,
   CalendarDays,
   Check,
   ChevronDown,
@@ -15,8 +14,6 @@ import {
   Landmark,
   LayoutGrid,
   LogOut,
-  Menu,
-  MessageCircle,
   MoreHorizontal,
   PieChart,
   Plus,
@@ -47,7 +44,6 @@ import {
   initialState,
   makeTransactionId,
   monthLabel,
-  parseTelegramCommand,
   transactionTotals,
   workspaceName,
 } from "./data";
@@ -116,7 +112,6 @@ const viewTitle: Record<AppView, string> = {
   reports: "Laporan",
   more: "Lainnya",
   debts: "Hutang",
-  telegram: "Telegram",
 };
 
 function App() {
@@ -125,7 +120,6 @@ function App() {
   const [state, setState] = useState<AppState>(loadInitialState);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [telegramText, setTelegramText] = useState("jajan 10rb");
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -182,13 +176,6 @@ function App() {
 
   const deleteTransaction = (id: string) => {
     setState((current) => ({ ...current, transactions: current.transactions.filter((item) => item.id !== id) }));
-  };
-
-  const addTelegramTransaction = () => {
-    const parsed = parseTelegramCommand(telegramText, state.transactions);
-    if (!parsed) return;
-    setState((current) => ({ ...current, transactions: [parsed, ...current.transactions] }));
-    setTelegramText("");
   };
 
   const payNextInstallment = (debtId: string) => {
@@ -303,14 +290,6 @@ function App() {
           />
         )}
         {view === "debts" && <DebtsView debts={state.debts} onPay={payNextInstallment} />}
-        {view === "telegram" && (
-          <TelegramView
-            telegramText={telegramText}
-            setTelegramText={setTelegramText}
-            parsed={parseTelegramCommand(telegramText, state.transactions)}
-            onAdd={addTelegramTransaction}
-          />
-        )}
         {view === "more" && <MoreView user={user} onNavigate={setView} onLogout={startLogout} />}
       </main>
 
@@ -341,7 +320,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <p className="eyebrow">Money Tracker</p>
           <h1>Kelola arus kas Juni dengan cepat.</h1>
           <p className="muted">
-            Demo data sudah siap untuk transaksi, budget, laporan, hutang, dan preview input Telegram.
+            Demo data sudah siap untuk transaksi, budget, laporan, dan hutang.
           </p>
         </div>
         <button className="primary-button large-button" type="button" onClick={onLogin}>
@@ -467,12 +446,6 @@ function HomeView({
           <span>Laporan</span>
         </button>
       </div>
-
-      <button className="telegram-banner" type="button" onClick={() => onNavigate("telegram")}>
-        <MessageCircle size={24} />
-        <span>Catat lewat Telegram</span>
-        <ChevronDown size={18} />
-      </button>
 
       <div className="content-grid">
         <section className="panel">
@@ -752,61 +725,6 @@ function DebtCard({ debt, onPay }: { debt: Debt; onPay: () => void }) {
   );
 }
 
-function TelegramView({
-  telegramText,
-  setTelegramText,
-  parsed,
-  onAdd,
-}: {
-  telegramText: string;
-  setTelegramText: (value: string) => void;
-  parsed: Transaction | null;
-  onAdd: () => void;
-}) {
-  return (
-    <section className="view-stack">
-      <section className="panel telegram-panel">
-        <div className="telegram-orb">
-          <Bot size={32} />
-        </div>
-        <div>
-          <p className="eyebrow">Preview parser</p>
-          <h2>Input cepat Telegram</h2>
-        </div>
-        <div className="chat-box">
-          <textarea value={telegramText} onChange={(event) => setTelegramText(event.target.value)} />
-          <button className="primary-button" type="button" onClick={onAdd} disabled={!parsed}>
-            <Plus size={18} />
-            Catat
-          </button>
-        </div>
-        <div className="bot-reply">
-          {parsed ? (
-            <>
-              <strong>Tercatat:</strong>
-              <span>{parsed.type === "income" ? "Masuk" : "Keluar"} - {parsed.title}</span>
-              <span>{currency(parsed.amount)}</span>
-              <small>Kategori: {getCategory(parsed.category).name}</small>
-            </>
-          ) : (
-            <span>Nominal belum terbaca.</span>
-          )}
-        </div>
-      </section>
-      <section className="panel guide-list">
-        {["jajan 10rb", "keluar bensin 42rb transport", "masuk transfer project 5jt", "domain wafin.id 248.049 tagihan"].map(
-          (example) => (
-            <button key={example} type="button" onClick={() => setTelegramText(example)}>
-              <MessageCircle size={18} />
-              {example}
-            </button>
-          ),
-        )}
-      </section>
-    </section>
-  );
-}
-
 function MoreView({
   user,
   onNavigate,
@@ -818,7 +736,6 @@ function MoreView({
 }) {
   const actions = [
     { label: "Hutang/Piutang", icon: Landmark, view: "debts" as AppView },
-    { label: "Telegram", icon: Bot, view: "telegram" as AppView },
     { label: "Kategori", icon: LayoutGrid, view: "more" as AppView },
     { label: "Workspace", icon: Settings, view: "more" as AppView },
     { label: "Export data", icon: FileText, view: "transactions" as AppView },
@@ -914,7 +831,7 @@ function TransactionForm({
           <label>
             Akun
             <select value={form.account} onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}>
-              {["cash", "bank", "dana", "gopay", "ovo", "telegram"].map((account) => (
+              {["cash", "bank", "dana", "gopay", "ovo"].map((account) => (
                 <option key={account} value={account}>
                   {account}
                 </option>

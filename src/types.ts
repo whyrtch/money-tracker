@@ -54,7 +54,7 @@ export type AppUser = {
   demo?: boolean;
 };
 
-export type AppView = "home" | "transactions" | "budget" | "reports" | "more" | "debts" | "telegram";
+export type AppView = "home" | "transactions" | "budget" | "reports" | "more" | "debts";
 
 export type AppState = {
   transactions: Transaction[];
