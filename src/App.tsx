@@ -16,6 +16,7 @@ import {
   LogOut,
   MoreHorizontal,
   PieChart,
+  Pencil,
   Plus,
   ReceiptText,
   Search,
@@ -44,11 +45,12 @@ import {
   initialState,
   makeTransactionId,
   monthLabel,
+  seedBudgets,
   transactionTotals,
   workspaceName,
 } from "./data";
 import { hasFirebaseConfig, logout, signInWithGoogle } from "./lib/firebase";
-import type { AppState, AppUser, AppView, Debt, DebtType, Transaction, TransactionType } from "./types";
+import type { AppState, AppUser, AppView, Budget, Debt, DebtType, Transaction, TransactionType } from "./types";
 
 type FormMode =
   | "expense"
@@ -87,7 +89,10 @@ const loadInitialState = (): AppState => {
     if (!stored) return initialState;
     const parsed = JSON.parse(stored) as AppState;
     if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.debts)) return initialState;
-    return parsed;
+    return {
+      ...parsed,
+      budgets: Array.isArray(parsed.budgets) ? parsed.budgets : seedBudgets,
+    };
   } catch {
     return initialState;
   }
@@ -246,6 +251,7 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -276,9 +282,34 @@ function App() {
     setUser(null);
   };
 
+  const resetDemoData = () => {
+    setState(initialState);
+    setTypeFilter("all");
+    setCategoryFilter("all");
+    setView("home");
+  };
+
   const openForm = (type: TransactionType = "expense") => {
     setFormErrors([]);
+    setEditingTransactionId(null);
     setForm({ ...emptyForm(), mode: type, type, category: type === "income" ? "income" : "food" });
+    setShowForm(true);
+  };
+
+  const openEditTransaction = (transaction: Transaction) => {
+    setFormErrors([]);
+    setEditingTransactionId(transaction.id);
+    setForm({
+      ...emptyForm(),
+      mode: transaction.type,
+      title: transaction.title,
+      amount: String(transaction.amount),
+      type: transaction.type,
+      category: transaction.category,
+      account: transaction.account,
+      date: transaction.date,
+      note: transaction.note ?? "",
+    });
     setShowForm(true);
   };
 
@@ -309,7 +340,7 @@ function App() {
     if (form.mode === "expense" || form.mode === "income") {
       if (!title || amount <= 0) return;
       const transaction: Transaction = {
-        id: makeTransactionId(state.transactions),
+        id: editingTransactionId ?? makeTransactionId(state.transactions),
         date: form.date,
         title,
         type: form.type,
@@ -319,7 +350,13 @@ function App() {
         note: form.note.trim() || undefined,
         source: "web",
       };
-      setState((current) => ({ ...current, transactions: [transaction, ...current.transactions] }));
+      setState((current) => ({
+        ...current,
+        transactions: editingTransactionId
+          ? current.transactions.map((item) => (item.id === editingTransactionId ? transaction : item))
+          : [transaction, ...current.transactions],
+      }));
+      setEditingTransactionId(null);
       setShowForm(false);
       return;
     }
@@ -351,6 +388,7 @@ function App() {
         installments: isInstallment ? makeDebtInstallments(form.date, installmentCount, dueDay, monthlyAmount, amount) : [],
       };
       setState((current) => ({ ...current, debts: [debt, ...current.debts] }));
+      setEditingTransactionId(null);
       setView("debts");
       setShowForm(false);
       return;
@@ -407,9 +445,10 @@ function App() {
           };
         });
 
-        return { debts, transactions: [...transactions, ...current.transactions] };
+        return { ...current, debts, transactions: [...transactions, ...current.transactions] };
       });
       setView("debts");
+      setEditingTransactionId(null);
       setShowForm(false);
       return;
     }
@@ -419,6 +458,19 @@ function App() {
 
   const deleteTransaction = (id: string) => {
     setState((current) => ({ ...current, transactions: current.transactions.filter((item) => item.id !== id) }));
+  };
+
+  const deleteDebt = (id: string) => {
+    setState((current) => ({ ...current, debts: current.debts.filter((debt) => debt.id !== id) }));
+  };
+
+  const updateBudget = (categoryId: string, amount: number) => {
+    setState((current) => {
+      const budgets = current.budgets.some((budget) => budget.categoryId === categoryId)
+        ? current.budgets.map((budget) => (budget.categoryId === categoryId ? { ...budget, amount } : budget))
+        : [...current.budgets, { categoryId, amount }];
+      return { ...current, budgets };
+    });
   };
 
   const exportCsv = () => {
@@ -480,11 +532,12 @@ function App() {
             setTypeFilter={setTypeFilter}
             setCategoryFilter={setCategoryFilter}
             onAdd={() => openForm("expense")}
+            onEdit={openEditTransaction}
             onDelete={deleteTransaction}
             onExport={exportCsv}
           />
         )}
-        {view === "budget" && <BudgetView transactions={state.transactions} />}
+        {view === "budget" && <BudgetView budgets={state.budgets} transactions={state.transactions} onUpdateBudget={updateBudget} />}
         {view === "reports" && (
           <ReportsView
             transactions={state.transactions}
@@ -494,8 +547,8 @@ function App() {
             incomeBreakdown={incomeBreakdown}
           />
         )}
-        {view === "debts" && <DebtsView debts={state.debts} onPay={openPaymentForm} />}
-        {view === "more" && <MoreView user={user} onNavigate={setView} onLogout={startLogout} />}
+        {view === "debts" && <DebtsView debts={state.debts} onDelete={deleteDebt} onPay={openPaymentForm} />}
+        {view === "more" && <MoreView user={user} onNavigate={setView} onLogout={startLogout} onResetData={resetDemoData} />}
       </main>
 
       <nav className="bottom-nav" aria-label="Navigasi bawah">
@@ -513,6 +566,7 @@ function App() {
           onClearErrors={() => setFormErrors([])}
           onClose={() => {
             setFormErrors([]);
+            setEditingTransactionId(null);
             setShowForm(false);
           }}
           onSubmit={saveForm}
@@ -703,6 +757,7 @@ function TransactionsView({
   setTypeFilter,
   setCategoryFilter,
   onAdd,
+  onEdit,
   onDelete,
   onExport,
 }: {
@@ -712,6 +767,7 @@ function TransactionsView({
   setTypeFilter: (value: "all" | TransactionType) => void;
   setCategoryFilter: (value: string) => void;
   onAdd: () => void;
+  onEdit: (transaction: Transaction) => void;
   onDelete: (id: string) => void;
   onExport: () => void;
 }) {
@@ -770,24 +826,32 @@ function TransactionsView({
       </div>
 
       <section className="panel">
-        <TransactionList transactions={filtered} onDelete={onDelete} />
+        <TransactionList transactions={filtered} onDelete={onDelete} onEdit={onEdit} />
       </section>
     </section>
   );
 }
 
-function BudgetView({ transactions }: { transactions: Transaction[] }) {
+function BudgetView({
+  budgets,
+  transactions,
+  onUpdateBudget,
+}: {
+  budgets: Budget[];
+  transactions: Transaction[];
+  onUpdateBudget: (categoryId: string, amount: number) => void;
+}) {
   const expenseTotals = categoryTotals(transactions, "expense");
   const budgetRows = categories
     .filter((item) => item.kind === "expense" && item.budget !== undefined)
     .map((category) => {
       const spent = expenseTotals.find((item) => item.id === category.id)?.amount ?? 0;
-      const budget = category.budget ?? 0;
+      const budget = budgets.find((item) => item.categoryId === category.id)?.amount ?? category.budget ?? 0;
       const used = budget ? Math.round((spent / budget) * 100) : 0;
       return { ...category, spent, used, remaining: budget - spent };
     });
 
-  const totalBudget = budgetRows.reduce((sum, item) => sum + (item.budget ?? 0), 0);
+  const totalBudget = budgetRows.reduce((sum, item) => sum + item.remaining + item.spent, 0);
   const totalSpent = budgetRows.reduce((sum, item) => sum + item.spent, 0);
 
   return (
@@ -803,7 +867,14 @@ function BudgetView({ transactions }: { transactions: Transaction[] }) {
             <CategoryTitle categoryId={item.id} />
             <div className="budget-values">
               <strong>{currency(item.spent)}</strong>
-              <span>{currency(item.budget ?? 0)}</span>
+              <label>
+                Budget
+                <input
+                  inputMode="numeric"
+                  value={String(item.spent + item.remaining)}
+                  onChange={(event) => onUpdateBudget(item.id, moneyValue(event.target.value))}
+                />
+              </label>
             </div>
             <ProgressBar percent={item.used} color={item.color} />
             <small className={item.used >= 100 ? "danger-text" : item.used >= 80 ? "warning-text" : "muted"}>
@@ -876,7 +947,15 @@ function ReportsView({
   );
 }
 
-function DebtsView({ debts, onPay }: { debts: Debt[]; onPay: (id: string) => void }) {
+function DebtsView({
+  debts,
+  onDelete,
+  onPay,
+}: {
+  debts: Debt[];
+  onDelete: (id: string) => void;
+  onPay: (id: string) => void;
+}) {
   const activeDebt = debts.filter((item) => item.type === "debt").reduce((sum, item) => sum + item.remainingAmount, 0);
   const activeReceivable = debts.filter((item) => item.type === "receivable").reduce((sum, item) => sum + item.remainingAmount, 0);
   const dueSoon = debts.flatMap((item) => item.installments.filter((installment) => !installment.paid)).length;
@@ -890,14 +969,14 @@ function DebtsView({ debts, onPay }: { debts: Debt[]; onPay: (id: string) => voi
       </div>
       <section className="debt-list">
         {debts.map((debt) => (
-          <DebtCard key={debt.id} debt={debt} onPay={() => onPay(debt.id)} />
+          <DebtCard key={debt.id} debt={debt} onDelete={() => onDelete(debt.id)} onPay={() => onPay(debt.id)} />
         ))}
       </section>
     </section>
   );
 }
 
-function DebtCard({ debt, onPay }: { debt: Debt; onPay: () => void }) {
+function DebtCard({ debt, onDelete, onPay }: { debt: Debt; onDelete: () => void; onPay: () => void }) {
   const paid = debt.originalAmount - debt.remainingAmount;
   const progress = Math.round((paid / debt.originalAmount) * 100);
   const next = debt.installments.find((item) => !item.paid);
@@ -918,10 +997,15 @@ function DebtCard({ debt, onPay }: { debt: Debt; onPay: () => void }) {
           </span>
           <h2>{debt.name}</h2>
         </div>
-        <button className="primary-button" type="button" onClick={onPay} disabled={debt.remainingAmount <= 0}>
-          <Check size={18} />
-          Bayar
-        </button>
+        <div className="debt-actions">
+          <button className="primary-button" type="button" onClick={onPay} disabled={debt.remainingAmount <= 0}>
+            <Check size={18} />
+            Bayar
+          </button>
+          <button className="icon-button" type="button" onClick={onDelete} aria-label="Hapus hutang">
+            <Trash2 size={17} />
+          </button>
+        </div>
       </div>
       <div className="debt-stats">
         <Metric icon={CircleDollarSign} label="Total awal" value={currency(debt.originalAmount)} />
@@ -947,10 +1031,12 @@ function MoreView({
   user,
   onNavigate,
   onLogout,
+  onResetData,
 }: {
   user: AppUser;
   onNavigate: (view: AppView) => void;
   onLogout: () => void;
+  onResetData: () => void;
 }) {
   const actions = [
     { label: "Hutang/Piutang", icon: Landmark, view: "debts" as AppView },
@@ -981,6 +1067,10 @@ function MoreView({
         <button type="button" onClick={onLogout}>
           <LogOut size={22} />
           <span>Logout</span>
+        </button>
+        <button type="button" onClick={onResetData}>
+          <Trash2 size={22} />
+          <span>Reset demo</span>
         </button>
       </section>
     </section>
@@ -1347,10 +1437,12 @@ function SectionHeader({
 function TransactionList({
   transactions,
   compact,
+  onEdit,
   onDelete,
 }: {
   transactions: Transaction[];
   compact?: boolean;
+  onEdit?: (transaction: Transaction) => void;
   onDelete?: (id: string) => void;
 }) {
   if (!transactions.length) {
@@ -1372,6 +1464,11 @@ function TransactionList({
             {transaction.type === "income" ? "+" : "-"}
             {currency(transaction.amount)}
           </strong>
+          {onEdit && (
+            <button className="icon-button" type="button" onClick={() => onEdit(transaction)} aria-label="Edit">
+              <Pencil size={17} />
+            </button>
+          )}
           {onDelete && (
             <button className="icon-button" type="button" onClick={() => onDelete(transaction.id)} aria-label="Hapus">
               <Trash2 size={17} />

@@ -26,6 +26,11 @@ export type Category = {
   budget?: number;
 };
 
+export type Budget = {
+  categoryId: string;
+  amount: number;
+};
+
 export type DebtInstallment = {
   id: string;
   dueDate: string;
@@ -62,4 +67,5 @@ export type AppView = "home" | "transactions" | "budget" | "reports" | "more" | 
 export type AppState = {
   transactions: Transaction[];
   debts: Debt[];
+  budgets: Budget[];
 };

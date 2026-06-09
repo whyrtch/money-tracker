@@ -502,7 +502,7 @@ p {
 
 .transaction-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 12px;
   min-height: 62px;
@@ -548,6 +548,7 @@ p {
 .category-title,
 .budget-values,
 .debt-top,
+.debt-actions,
 .installment-row,
 .account-panel {
   display: flex;
@@ -560,6 +561,24 @@ p {
 .debt-top,
 .installment-row {
   justify-content: space-between;
+}
+
+.debt-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.budget-values label {
+  display: grid;
+  gap: 4px;
+  min-width: 140px;
+  color: #667568;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.budget-values input {
+  min-height: 36px;
 }
 
 .category-title {
@@ -871,7 +890,7 @@ textarea {
   }
 
   .transaction-row .icon-button {
-    grid-column: 2;
+    grid-column: auto;
     justify-self: start;
   }
 

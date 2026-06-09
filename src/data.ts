@@ -10,7 +10,7 @@ import {
   ShoppingBag,
   Utensils,
 } from "lucide-react";
-import type { AppState, Category, Debt, Transaction, TransactionType } from "./types";
+import type { AppState, Budget, Category, Debt, Transaction, TransactionType } from "./types";
 
 export const monthLabel = "Juni 2026";
 export const workspaceName = "Tiga Awan Studio";
@@ -115,9 +115,14 @@ export const seedDebts: Debt[] = [
   },
 ];
 
+export const seedBudgets: Budget[] = categories
+  .filter((category) => category.kind === "expense" && category.budget !== undefined)
+  .map((category) => ({ categoryId: category.id, amount: category.budget ?? 0 }));
+
 export const initialState: AppState = {
   transactions: seedTransactions,
   debts: seedDebts,
+  budgets: seedBudgets,
 };
 
 export const getCategory = (id: string) => categories.find((category) => category.id === id) ?? categories[categories.length - 1];
