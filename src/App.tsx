@@ -18,6 +18,7 @@ import {
   Pencil,
   Plus,
   ReceiptText,
+  Scale,
   Search,
   Settings,
   Trash2,
@@ -669,7 +670,7 @@ function TopBar({
   onAdd: () => void;
   onLogout: () => void;
 }) {
-  if (view === "home") {
+  if (view === "home" || view === "transactions") {
     return (
       <header className="top-bar home-top-bar">
         <div className="home-title-lockup">
@@ -677,7 +678,7 @@ function TopBar({
             <Wallet size={20} />
           </span>
           <div>
-            <h1>Beranda</h1>
+            <h1>{viewTitle[view]}</h1>
             <p>{monthLabel} - {workspaceName}</p>
           </div>
         </div>
@@ -818,58 +819,135 @@ function TransactionsView({
       (categoryFilter === "all" || item.category === categoryFilter),
   );
   const totals = transactionTotals(filtered);
+  const maxTotal = Math.max(totals.income, totals.expense, Math.abs(totals.net), 1);
 
   return (
-    <section className="view-stack">
-      <div className="toolbar">
-        <div className="segmented">
-          <button className={typeFilter === "all" ? "active" : ""} type="button" onClick={() => setTypeFilter("all")}>
-            Semua
-          </button>
-          <button
-            className={typeFilter === "income" ? "active" : ""}
-            type="button"
-            onClick={() => setTypeFilter("income")}
-          >
-            Masuk
-          </button>
-          <button
-            className={typeFilter === "expense" ? "active" : ""}
-            type="button"
-            onClick={() => setTypeFilter("expense")}
-          >
-            Keluar
-          </button>
-        </div>
-        <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-          <option value="all">Semua kategori</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-        <button className="icon-text-button" type="button" onClick={onExport}>
+    <section className="view-stack transactions-view">
+      <section className="transactions-heading">
+        <h2>Transaksi</h2>
+        <p>{filtered.length} entri</p>
+      </section>
+
+      <div className="transactions-action-row">
+        <span>Pilih</span>
+        <button className="icon-text-button transaction-export-button" type="button" onClick={onExport}>
           <Download size={18} />
-          CSV
+          Export CSV
         </button>
-        <button className="primary-button" type="button" onClick={onAdd}>
+        <button className="primary-button transaction-add-button" type="button" onClick={onAdd}>
           <Plus size={18} />
           Tambah
         </button>
       </div>
 
-      <div className="summary-grid flat">
-        <Metric icon={ReceiptText} label="Entri" value={`${filtered.length}`} />
-        <Metric icon={ArrowDownLeft} label="Masuk" value={currency(totals.income)} tone="income" />
-        <Metric icon={ArrowUpRight} label="Keluar" value={currency(totals.expense)} tone="expense" />
-        <Metric icon={CircleDollarSign} label="Netto" value={currency(totals.net)} />
-      </div>
+      <section className="transaction-summary-card">
+        <div className="transaction-summary-head">
+          <div>
+            <h3>Ringkasan Keuangan</h3>
+            <p>{filtered.length} transaksi pada periode ini</p>
+          </div>
+          <button type="button">
+            <CalendarDays size={18} />
+            {monthLabel}
+            <ChevronDown size={16} />
+          </button>
+        </div>
+        <div className="transaction-summary-body">
+          <TransactionSummaryItem
+            icon={ArrowDownLeft}
+            label="Masuk"
+            value={currency(totals.income)}
+            amount={totals.income}
+            maxAmount={maxTotal}
+            tone="income"
+          />
+          <TransactionSummaryItem
+            icon={ArrowUpRight}
+            label="Keluar"
+            value={currency(totals.expense)}
+            amount={totals.expense}
+            maxAmount={maxTotal}
+            tone="expense"
+          />
+          <TransactionSummaryItem
+            icon={Scale}
+            label="Neto"
+            value={currency(totals.net, true)}
+            amount={Math.abs(totals.net)}
+            maxAmount={maxTotal}
+            tone={totals.net < 0 ? "expense" : "income"}
+          />
+        </div>
+      </section>
 
-      <section className="panel">
+      <section className="panel transactions-list-panel">
+        <div className="transactions-filter-row">
+          <div className="segmented">
+            <button className={typeFilter === "all" ? "active" : ""} type="button" onClick={() => setTypeFilter("all")}>
+              Semua
+            </button>
+            <button
+              className={typeFilter === "income" ? "active" : ""}
+              type="button"
+              onClick={() => setTypeFilter("income")}
+            >
+              Masuk
+            </button>
+            <button
+              className={typeFilter === "expense" ? "active" : ""}
+              type="button"
+              onClick={() => setTypeFilter("expense")}
+            >
+              Keluar
+            </button>
+          </div>
+          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+            <option value="all">Semua kategori</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <TransactionList transactions={filtered} onDelete={onDelete} onEdit={onEdit} />
       </section>
     </section>
+  );
+}
+
+function TransactionSummaryItem({
+  icon: Icon,
+  label,
+  value,
+  amount,
+  maxAmount,
+  tone,
+}: {
+  icon: typeof Home;
+  label: string;
+  value: string;
+  amount: number;
+  maxAmount: number;
+  tone: "income" | "expense";
+}) {
+  const percent = amount > 0 ? Math.max(6, Math.round((amount / maxAmount) * 100)) : 0;
+  const trend = amount > 0 ? "100.0%" : "0.0%";
+
+  return (
+    <article className={`transaction-summary-item ${tone}`}>
+      <div className="transaction-summary-icon">
+        <Icon size={19} />
+      </div>
+      <div className="transaction-summary-copy">
+        <strong>{label}</strong>
+        <span>{value}</span>
+        <small>{trend} vs Mei 2026</small>
+      </div>
+      <div className="transaction-summary-progress" aria-label={`${label} ${percent}%`}>
+        <span style={{ width: `${percent}%` }} />
+      </div>
+    </article>
   );
 }
 
