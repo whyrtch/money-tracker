@@ -50,15 +50,13 @@ import {
   workspaceName,
 } from "./data";
 import { hasFirebaseConfig, logout, signInWithGoogle } from "./lib/firebase";
-import type { AppState, AppUser, AppView, Budget, Debt, DebtType, Transaction, TransactionType } from "./types";
+import type { AppState, AppUser, AppView, Budget, Debt, Transaction, TransactionType } from "./types";
 
 type FormMode =
   | "expense"
   | "income"
   | "debt"
-  | "receivable"
   | "debt_installment"
-  | "receivable_installment"
   | "payment";
 
 type FormState = {
@@ -167,15 +165,13 @@ const validateForm = (form: FormState, debts: Debt[]) => {
 
   if (
     form.mode === "debt" ||
-    form.mode === "receivable" ||
-    form.mode === "debt_installment" ||
-    form.mode === "receivable_installment"
+    form.mode === "debt_installment"
   ) {
-    if (!form.title.trim()) errors.push("Nama hutang/piutang wajib diisi.");
+    if (!form.title.trim()) errors.push("Nama hutang wajib diisi.");
     if (amount <= 0) errors.push("Total wajib lebih dari 0.");
     if (!isValidDate(form.date)) errors.push("Tanggal mulai wajib valid.");
 
-    if (form.mode === "debt" || form.mode === "receivable") {
+    if (form.mode === "debt") {
       if (!isValidDate(form.dueDate)) errors.push("Tanggal jatuh tempo wajib valid.");
       if (isValidDate(form.date) && isValidDate(form.dueDate) && form.dueDate < form.date) {
         errors.push("Jatuh tempo tidak boleh sebelum tanggal mulai.");
@@ -185,17 +181,17 @@ const validateForm = (form: FormState, debts: Debt[]) => {
       if (monthlyAmount <= 0) errors.push("Nominal cicilan wajib lebih dari 0.");
       if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) errors.push("Tanggal jatuh tempo cicilan harus 1-31.");
       if (monthlyAmount > 0 && installmentCount > 0 && monthlyAmount * installmentCount < amount) {
-        errors.push("Total jadwal cicilan harus menutup total hutang/piutang.");
+        errors.push("Total jadwal cicilan harus menutup total hutang.");
       }
     }
   }
 
   if (form.mode === "payment") {
-    if (!activeDebts.length) errors.push("Belum ada hutang atau piutang aktif untuk dibayar.");
-    if (!form.debtId || !selectedDebt) errors.push("Pilih hutang/piutang yang akan dibayar.");
+    if (!activeDebts.length) errors.push("Belum ada hutang aktif untuk dibayar.");
+    if (!form.debtId || !selectedDebt) errors.push("Pilih hutang yang akan dibayar.");
     if (amount <= 0) errors.push("Nominal bayar wajib lebih dari 0.");
     if (selectedDebt && amount > selectedDebt.remainingAmount) {
-      errors.push("Nominal bayar tidak boleh melebihi sisa hutang/piutang.");
+      errors.push("Nominal bayar tidak boleh melebihi sisa hutang.");
     }
     if (!isValidDate(form.date)) errors.push("Tanggal bayar wajib valid.");
     if (!form.account) errors.push("Akun wajib dipilih.");
@@ -263,6 +259,7 @@ function App() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -303,13 +300,43 @@ function App() {
   const openForm = (type: TransactionType = "expense") => {
     setFormErrors([]);
     setEditingTransactionId(null);
+    setEditingDebtId(null);
     setForm({ ...emptyForm(), mode: type, type, category: type === "income" ? "income" : "food" });
+    setShowForm(true);
+  };
+
+  const openDebtForm = () => {
+    setFormErrors([]);
+    setEditingTransactionId(null);
+    setEditingDebtId(null);
+    setForm({ ...emptyForm(), mode: "debt_installment" });
+    setShowForm(true);
+  };
+
+  const openEditDebt = (debt: Debt) => {
+    setFormErrors([]);
+    setEditingTransactionId(null);
+    setEditingDebtId(debt.id);
+    setForm({
+      ...emptyForm(),
+      mode: debt.mode === "installment" ? "debt_installment" : "debt",
+      title: debt.name,
+      amount: String(debt.originalAmount),
+      date: debt.startDate ?? today(),
+      dueDate: debt.dueDate ?? today(),
+      dueDay: String(debt.dueDay ?? new Date(`${debt.installments[0]?.dueDate ?? today()}T00:00:00`).getDate()),
+      installmentCount: String(Math.max(1, debt.installments.length || 1)),
+      monthlyAmount: String(debt.monthlyAmount || ""),
+      fineAmount: String(debt.finePaid || ""),
+      note: debt.note ?? "",
+    });
     setShowForm(true);
   };
 
   const openEditTransaction = (transaction: Transaction) => {
     setFormErrors([]);
     setEditingTransactionId(transaction.id);
+    setEditingDebtId(null);
     setForm({
       ...emptyForm(),
       mode: transaction.type,
@@ -327,6 +354,7 @@ function App() {
   const openPaymentForm = (debtId: string) => {
     const debt = state.debts.find((item) => item.id === debtId);
     setFormErrors([]);
+    setEditingDebtId(null);
     setForm({
       ...emptyForm(),
       mode: "payment",
@@ -374,32 +402,38 @@ function App() {
 
     if (
       form.mode === "debt" ||
-      form.mode === "receivable" ||
-      form.mode === "debt_installment" ||
-      form.mode === "receivable_installment"
+      form.mode === "debt_installment"
     ) {
       if (!title || amount <= 0) return;
-      const debtType: DebtType = form.mode.startsWith("receivable") ? "receivable" : "debt";
       const isInstallment = form.mode.endsWith("installment");
       const installmentCount = Math.max(1, Number(form.installmentCount) || 1);
       const monthlyAmount = isInstallment ? moneyValue(form.monthlyAmount) || Math.ceil(amount / installmentCount) : 0;
       const dueDay = Math.min(31, Math.max(1, Number(form.dueDay) || new Date(`${form.date}T00:00:00`).getDate()));
+      const existingDebt = state.debts.find((debt) => debt.id === editingDebtId);
+      const paidAmount = existingDebt ? Math.max(0, existingDebt.originalAmount - existingDebt.remainingAmount) : 0;
       const debt: Debt = {
-        id: makeDebtId(state.debts, title),
+        id: editingDebtId ?? makeDebtId(state.debts, title),
         name: title,
-        type: debtType,
+        type: "debt",
         mode: isInstallment ? "installment" : "simple",
         originalAmount: amount,
-        remainingAmount: amount,
+        remainingAmount: Math.max(0, amount - paidAmount),
         monthlyAmount,
         finePaid: fineAmount || undefined,
         startDate: form.date,
         dueDate: isInstallment ? undefined : form.dueDate,
         dueDay: isInstallment ? dueDay : undefined,
+        note: form.note.trim() || undefined,
         installments: isInstallment ? makeDebtInstallments(form.date, installmentCount, dueDay, monthlyAmount, amount) : [],
       };
-      setState((current) => ({ ...current, debts: [debt, ...current.debts] }));
+      setState((current) => ({
+        ...current,
+        debts: editingDebtId
+          ? current.debts.map((item) => (item.id === editingDebtId ? debt : item))
+          : [debt, ...current.debts],
+      }));
       setEditingTransactionId(null);
+      setEditingDebtId(null);
       setView("debts");
       setShowForm(false);
       return;
@@ -418,9 +452,9 @@ function App() {
             id: makeTransactionId([...current.transactions, ...transactions]),
             date: form.date,
             title: `Bayar ${selected.name}`,
-            type: selected.type === "debt" ? "expense" : "income",
+            type: "expense",
             amount: paymentAmount,
-            category: selected.type === "debt" ? "debt-payment" : "receivable",
+            category: "debt-payment",
             account: form.account,
             note: form.note.trim() || `Pembayaran ${selected.name}`,
             source: "web",
@@ -432,7 +466,7 @@ function App() {
             id: makeTransactionId([...current.transactions, ...transactions]),
             date: form.date,
             title: `Denda ${selected.name}`,
-            type: selected.type === "debt" ? "expense" : "income",
+            type: "expense",
             amount: fineAmount,
             category: "fine",
             account: form.account,
@@ -460,6 +494,7 @@ function App() {
       });
       setView("debts");
       setEditingTransactionId(null);
+      setEditingDebtId(null);
       setShowForm(false);
       return;
     }
@@ -558,7 +593,9 @@ function App() {
             incomeBreakdown={incomeBreakdown}
           />
         )}
-        {view === "debts" && <DebtsView debts={state.debts} onDelete={deleteDebt} onPay={openPaymentForm} />}
+        {view === "debts" && (
+          <DebtsView debts={state.debts} onAdd={openDebtForm} onDelete={deleteDebt} onEdit={openEditDebt} onPay={openPaymentForm} />
+        )}
         {view === "more" && <MoreView user={user} onNavigate={setView} onLogout={startLogout} onResetData={resetDemoData} />}
       </main>
 
@@ -578,6 +615,7 @@ function App() {
           onClose={() => {
             setFormErrors([]);
             setEditingTransactionId(null);
+            setEditingDebtId(null);
             setShowForm(false);
           }}
           onSubmit={saveForm}
@@ -960,34 +998,97 @@ function ReportsView({
 
 function DebtsView({
   debts,
+  onAdd,
   onDelete,
+  onEdit,
   onPay,
 }: {
   debts: Debt[];
+  onAdd: () => void;
   onDelete: (id: string) => void;
+  onEdit: (debt: Debt) => void;
   onPay: (id: string) => void;
 }) {
-  const activeDebt = debts.filter((item) => item.type === "debt").reduce((sum, item) => sum + item.remainingAmount, 0);
-  const activeReceivable = debts.filter((item) => item.type === "receivable").reduce((sum, item) => sum + item.remainingAmount, 0);
-  const dueSoon = debts.flatMap((item) => item.installments.filter((installment) => !installment.paid)).length;
+  const debtRecords = debts.filter((item) => item.type === "debt");
+  const todayDate = today();
+  const sevenDaysFromNow = new Date(`${todayDate}T00:00:00`);
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  const dueLimit = sevenDaysFromNow.toISOString().slice(0, 10);
+  const activeDebt = debtRecords.reduce((sum, item) => sum + item.remainingAmount, 0);
+  const dueSoon = debtRecords.reduce((sum, debt) => {
+    const installmentAmount = debt.installments
+      .filter((installment) => !installment.paid && installment.dueDate >= todayDate && installment.dueDate <= dueLimit)
+      .reduce((subtotal, installment) => subtotal + installment.amount, 0);
+    const simpleDebtDue = debt.mode === "simple" && debt.dueDate && debt.dueDate >= todayDate && debt.dueDate <= dueLimit;
+    return sum + installmentAmount + (simpleDebtDue ? debt.remainingAmount : 0);
+  }, 0);
 
   return (
-    <section className="view-stack">
-      <div className="summary-grid flat">
-        <Metric icon={Landmark} label="Hutang aktif" value={currency(activeDebt)} tone="expense" />
-        <Metric icon={ArrowDownLeft} label="Piutang aktif" value={currency(activeReceivable)} tone="income" />
-        <Metric icon={CalendarDays} label="Cicilan terbuka" value={`${dueSoon}`} />
+    <section className="view-stack debts-view">
+      <div className="page-heading">
+        <div>
+          <h2>Hutang</h2>
+          <p>Cicilan, denda & kewajiban bayar</p>
+        </div>
+        <button className="primary-button light-button" type="button" onClick={onAdd}>
+          <Plus size={18} />
+          Tambah hutang
+        </button>
       </div>
+
+      <section className="debt-summary-hero">
+        <div className="debt-summary-main">
+          <span className="debt-summary-icon">
+            <Landmark size={24} />
+          </span>
+          <div>
+            <small>Total hutang aktif</small>
+            <strong>{currency(activeDebt)}</strong>
+            <span>{debtRecords.filter((debt) => debt.remainingAmount > 0).length} akun aktif</span>
+          </div>
+        </div>
+        <div className="debt-summary-grid">
+          <div>
+            <small>Terbayar</small>
+            <strong>{currency(debtRecords.reduce((sum, debt) => sum + Math.max(0, debt.originalAmount - debt.remainingAmount), 0))}</strong>
+          </div>
+          <div>
+            <small>7 hari</small>
+            <strong>{currency(dueSoon)}</strong>
+          </div>
+        </div>
+      </section>
+
       <section className="debt-list">
-        {debts.map((debt) => (
-          <DebtCard key={debt.id} debt={debt} onDelete={() => onDelete(debt.id)} onPay={() => onPay(debt.id)} />
-        ))}
+        {debtRecords.length ? (
+          debtRecords.map((debt) => (
+            <DebtCard
+              key={debt.id}
+              debt={debt}
+              onDelete={() => onDelete(debt.id)}
+              onEdit={() => onEdit(debt)}
+              onPay={() => onPay(debt.id)}
+            />
+          ))
+        ) : (
+          <div className="empty-state">Belum ada hutang aktif.</div>
+        )}
       </section>
     </section>
   );
 }
 
-function DebtCard({ debt, onDelete, onPay }: { debt: Debt; onDelete: () => void; onPay: () => void }) {
+function DebtCard({
+  debt,
+  onDelete,
+  onEdit,
+  onPay,
+}: {
+  debt: Debt;
+  onDelete: () => void;
+  onEdit: () => void;
+  onPay: () => void;
+}) {
   const paid = debt.originalAmount - debt.remainingAmount;
   const progress = Math.round((paid / debt.originalAmount) * 100);
   const next = debt.installments.find((item) => !item.paid);
@@ -1003,27 +1104,44 @@ function DebtCard({ debt, onDelete, onPay }: { debt: Debt; onDelete: () => void;
     <article className="debt-card">
       <div className="debt-top">
         <div>
-          <span className={`status-pill ${debt.type === "receivable" ? "income-pill" : ""}`}>
-            {debt.type === "debt" ? "Hutang" : "Piutang"}
+          <span className="category-icon debt-card-icon">
+            <Landmark size={18} />
           </span>
+        </div>
+        <div className="debt-card-title">
           <h2>{debt.name}</h2>
+          <span className="status-pill debt-pill">Hutang</span>
         </div>
-        <div className="debt-actions">
-          <button className="primary-button" type="button" onClick={onPay} disabled={debt.remainingAmount <= 0}>
-            <Check size={18} />
-            Bayar
-          </button>
-          <button className="icon-button" type="button" onClick={onDelete} aria-label="Hapus hutang">
-            <Trash2 size={17} />
-          </button>
-        </div>
+        <strong className="debt-card-balance">{currency(debt.remainingAmount)}</strong>
       </div>
       <div className="debt-stats">
         <Metric icon={CircleDollarSign} label="Total awal" value={currency(debt.originalAmount)} />
         <Metric icon={ArrowUpRight} label="Sisa" value={currency(debt.remainingAmount)} tone="expense" />
         <Metric icon={CalendarDays} label="Jatuh tempo" value={dueLabel} />
       </div>
+      <p className="debt-card-copy">
+        Total hutang {currency(debt.originalAmount)}
+        {debt.monthlyAmount ? ` - ${currency(debt.monthlyAmount)} per bulan` : ""}{" "}
+        {debt.installments.length ? `- ${debt.installments.length} cicilan` : ""}
+      </p>
+      {(debt.finePaid ?? 0) > 0 && <p className="debt-fine">Denda terbayar {currency(debt.finePaid ?? 0)}</p>}
+      <div className="debt-progress-head">
+        <span>Progress pelunasan</span>
+        <strong>{progress}%</strong>
+      </div>
       <ProgressBar percent={progress} color="#0f9f61" />
+      <div className="debt-actions">
+        <button className="primary-button" type="button" onClick={onPay} disabled={debt.remainingAmount <= 0}>
+          Bayar
+        </button>
+        <button className="icon-text-button" type="button" onClick={onEdit}>
+          <Pencil size={17} />
+          Edit
+        </button>
+        <button className="icon-button" type="button" onClick={onDelete} aria-label="Hapus hutang">
+          <Trash2 size={17} />
+        </button>
+      </div>
       <div className="installment-list">
         {debt.installments.slice(0, 6).map((item) => (
           <div className="installment-row" key={item.id}>
@@ -1050,7 +1168,7 @@ function MoreView({
   onResetData: () => void;
 }) {
   const actions = [
-    { label: "Hutang/Piutang", icon: Landmark, view: "debts" as AppView },
+    { label: "Hutang", icon: Landmark, view: "debts" as AppView },
     { label: "Kategori", icon: LayoutGrid, view: "more" as AppView },
     { label: "Workspace", icon: Settings, view: "more" as AppView },
     { label: "Export data", icon: FileText, view: "transactions" as AppView },
@@ -1108,13 +1226,11 @@ function TransactionForm({
   const isCashTransaction = form.mode === "expense" || form.mode === "income";
   const isDebtCreation =
     form.mode === "debt" ||
-    form.mode === "receivable" ||
-    form.mode === "debt_installment" ||
-    form.mode === "receivable_installment";
-  const isInstallmentCreation = form.mode === "debt_installment" || form.mode === "receivable_installment";
+    form.mode === "debt_installment";
+  const isInstallmentCreation = form.mode === "debt_installment";
   const isPayment = form.mode === "payment";
   const availableCategories = categories.filter((item) => item.kind === form.type || item.kind === "both");
-  const activeDebts = debts.filter((debt) => debt.remainingAmount > 0);
+  const activeDebts = debts.filter((debt) => debt.type === "debt" && debt.remainingAmount > 0);
   const selectedDebt = activeDebts.find((debt) => debt.id === form.debtId) ?? activeDebts[0];
   const updateForm: React.Dispatch<React.SetStateAction<FormState>> = (value) => {
     onClearErrors();
@@ -1138,9 +1254,7 @@ function TransactionForm({
     { id: "expense", label: "Keluar", icon: ArrowUpRight },
     { id: "income", label: "Masuk", icon: ArrowDownLeft },
     { id: "debt", label: "Hutang", icon: Landmark },
-    { id: "receivable", label: "Piutang", icon: Wallet },
     { id: "debt_installment", label: "Cicilan Hutang", icon: CalendarDays },
-    { id: "receivable_installment", label: "Cicilan Piutang", icon: BadgePlus },
     { id: "payment", label: "Bayar", icon: Check },
   ];
 
@@ -1305,7 +1419,7 @@ function TransactionForm({
             {activeDebts.length ? (
               <>
                 <label>
-                  Hutang/Piutang
+                  Hutang
                   <select
                     required
                     value={form.debtId || selectedDebt?.id || ""}
@@ -1358,7 +1472,7 @@ function TransactionForm({
                 </label>
               </>
             ) : (
-              <div className="empty-state">Belum ada hutang atau piutang aktif.</div>
+              <div className="empty-state">Belum ada hutang aktif.</div>
             )}
           </>
         )}

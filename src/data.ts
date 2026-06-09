@@ -25,7 +25,6 @@ export const categories: Category[] = [
   { id: "transport", name: "Transportasi", kind: "expense", color: "#23bf73", softColor: "#def8ea", icon: Car, budget: 200000 },
   { id: "shopping", name: "Belanja", kind: "expense", color: "#64748b", softColor: "#eef2f7", icon: ShoppingBag, budget: 250000 },
   { id: "debt-payment", name: "Pembayaran Hutang", kind: "expense", color: "#c2185b", softColor: "#ffe2ee", icon: Landmark, budget: 0 },
-  { id: "receivable", name: "Penerimaan Piutang", kind: "income", color: "#0f9f61", softColor: "#e1f8ec", icon: Banknote },
   { id: "fine", name: "Denda", kind: "expense", color: "#b45309", softColor: "#fff0d8", icon: Bolt, budget: 0 },
   { id: "other", name: "Lain-lain", kind: "both", color: "#5f6f82", softColor: "#eef2f4", icon: Package, budget: 150000 },
   { id: "saving", name: "Tabungan", kind: "both", color: "#0f9f61", softColor: "#e1f8ec", icon: PiggyBank, budget: 0 },

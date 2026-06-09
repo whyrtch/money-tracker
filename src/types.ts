@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 
 export type TransactionType = "income" | "expense";
 export type DebtMode = "simple" | "installment";
-export type DebtType = "debt" | "receivable";
+export type DebtType = "debt";
 
 export type Transaction = {
   id: string;
@@ -51,6 +51,7 @@ export type Debt = {
   startDate?: string;
   dueDate?: string;
   dueDay?: number;
+  note?: string;
   installments: DebtInstallment[];
 };
 
