@@ -80,7 +80,7 @@ type FormState = {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
-const stateStorageKey = "money-tracker-state-v1";
+const stateStorageKey = "money-tracker-state-v2";
 const userStorageKey = "money-tracker-user-v1";
 
 const loadInitialState = (): AppState => {
@@ -585,7 +585,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <p className="eyebrow">Money Tracker</p>
           <h1>Kelola arus kas Juni dengan cepat.</h1>
           <p className="muted">
-            Demo data sudah siap untuk transaksi, budget, laporan, dan hutang.
+            Mulai dari data kosong untuk transaksi, budget, laporan, dan hutang.
           </p>
         </div>
         <button className="primary-button large-button" type="button" onClick={onLogin}>
@@ -1070,7 +1070,7 @@ function MoreView({
         </button>
         <button type="button" onClick={onResetData}>
           <Trash2 size={22} />
-          <span>Reset demo</span>
+          <span>Kosongkan data</span>
         </button>
       </section>
     </section>
