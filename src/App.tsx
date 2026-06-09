@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronUp,
   CircleDollarSign,
   Download,
   FileText,
@@ -1112,13 +1113,12 @@ function DebtCard({
           <h2>{debt.name}</h2>
           <span className="status-pill debt-pill">Hutang</span>
         </div>
-        <strong className="debt-card-balance">{currency(debt.remainingAmount)}</strong>
+        <div className="debt-card-balance">
+          <strong>{currency(debt.remainingAmount)}</strong>
+          <span>sisa</span>
+        </div>
       </div>
-      <div className="debt-stats">
-        <Metric icon={CircleDollarSign} label="Total awal" value={currency(debt.originalAmount)} />
-        <Metric icon={ArrowUpRight} label="Sisa" value={currency(debt.remainingAmount)} tone="expense" />
-        <Metric icon={CalendarDays} label="Jatuh tempo" value={dueLabel} />
-      </div>
+      <p className="debt-next-due">Jatuh tempo berikutnya {next ? `#${next.id} · ${dateMonthDay(next.dueDate)}` : dueLabel}</p>
       <p className="debt-card-copy">
         Total hutang {currency(debt.originalAmount)}
         {debt.monthlyAmount ? ` - ${currency(debt.monthlyAmount)} per bulan` : ""}{" "}
@@ -1138,10 +1138,14 @@ function DebtCard({
           <Pencil size={17} />
           Edit
         </button>
-        <button className="icon-button" type="button" onClick={onDelete} aria-label="Hapus hutang">
-          <Trash2 size={17} />
+        <button className="icon-button debt-toggle" type="button" aria-label="Tutup daftar cicilan">
+          <ChevronUp size={17} />
         </button>
       </div>
+      <button className="debt-delete-button" type="button" onClick={onDelete}>
+        <Trash2 size={15} />
+        Hapus catatan
+      </button>
       <div className="installment-list">
         {debt.installments.slice(0, 6).map((item) => (
           <div className="installment-row" key={item.id}>

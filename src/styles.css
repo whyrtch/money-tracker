@@ -268,8 +268,19 @@ p {
   gap: 12px;
 }
 
+.debts-view {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.debts-view .page-heading {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .page-heading h2 {
-  font-size: 1.9rem;
+  font-size: 2rem;
   line-height: 1.1;
 }
 
@@ -282,6 +293,7 @@ p {
 .light-button {
   color: #132018;
   background: #ffffff;
+  border-color: #edf1ef;
   box-shadow: 0 10px 22px rgba(26, 46, 35, 0.08);
 }
 
@@ -296,11 +308,13 @@ p {
 
 .debt-summary-hero {
   display: grid;
-  gap: 18px;
+  gap: 20px;
   padding: 20px;
   color: #ffffff;
-  background: linear-gradient(135deg, #d4145a, #9f1746);
-  border-radius: 18px;
+  background:
+    radial-gradient(circle at 78% 18%, rgba(255, 255, 255, 0.1), transparent 32%),
+    linear-gradient(135deg, #d4145a, #9f1746);
+  border-radius: 16px;
   box-shadow: 0 18px 38px rgba(157, 24, 70, 0.24);
 }
 
@@ -329,7 +343,7 @@ p {
 
 .debt-summary-main strong {
   margin-top: 4px;
-  font-size: 1.7rem;
+  font-size: 1.8rem;
   line-height: 1;
 }
 
@@ -352,7 +366,7 @@ p {
 .debt-summary-grid > div {
   display: grid;
   gap: 6px;
-  min-height: 72px;
+  min-height: 64px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.14);
   border-radius: 8px;
@@ -766,13 +780,18 @@ textarea {
 
 .debt-card {
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: 12px;
+  padding: 16px;
+  border-color: #edf1ef;
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(26, 46, 35, 0.08);
 }
 
 .debt-card-icon {
   color: #c2185b;
   background: #ffe2ee;
+  width: 42px;
+  height: 42px;
 }
 
 .debt-stats {
@@ -799,15 +818,37 @@ textarea {
   text-align: right;
 }
 
+.debt-card-balance strong,
+.debt-card-balance span {
+  display: block;
+}
+
+.debt-card-balance span {
+  margin-top: 2px;
+  color: #667568;
+  font-size: 0.72rem;
+}
+
 .debt-card-copy,
 .debt-fine,
-.debt-progress-head {
+.debt-progress-head,
+.debt-next-due {
   font-size: 0.86rem;
 }
 
+.debt-card-copy {
+  margin-left: 52px;
+}
+
 .debt-fine {
+  margin-left: 52px;
   color: #c2185b;
   font-weight: 800;
+}
+
+.debt-next-due {
+  margin-left: 52px;
+  color: #667568;
 }
 
 .debt-progress-head {
@@ -815,6 +856,46 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-left: 52px;
+}
+
+.debt-card > .progress-bar {
+  width: calc(100% - 52px);
+  margin-left: 52px;
+}
+
+.debt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.debt-actions .primary-button,
+.debt-actions .icon-text-button,
+.debt-actions .icon-button {
+  min-height: 44px;
+  width: 100%;
+}
+
+.debt-toggle {
+  justify-self: stretch;
+}
+
+.debt-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 0 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #c2185b;
+  background: transparent;
+  border: 0;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
 .installment-row {
@@ -958,15 +1039,17 @@ textarea {
   .bottom-nav {
     position: fixed;
     z-index: 40;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    right: 14px;
+    bottom: 12px;
+    left: 14px;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
-    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     background: rgba(255, 255, 255, 0.96);
-    border-top: 1px solid #dfe8e4;
+    border: 1px solid #dfe8e4;
+    border-radius: 24px;
+    box-shadow: 0 18px 40px rgba(26, 46, 35, 0.16);
     backdrop-filter: blur(12px);
   }
 
@@ -976,6 +1059,11 @@ textarea {
     min-height: 52px;
     padding: 4px;
     font-size: 0.72rem;
+  }
+
+  .bottom-nav .nav-button.active {
+    color: #0f7d4e;
+    background: transparent;
   }
 
   .top-bar h1 {
