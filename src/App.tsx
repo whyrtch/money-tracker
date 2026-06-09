@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  BadgePlus,
   BarChart3,
   CalendarDays,
   Check,
@@ -16,7 +15,6 @@ import {
   LayoutGrid,
   LogOut,
   MoreHorizontal,
-  PieChart,
   Pencil,
   Plus,
   ReceiptText,
@@ -568,7 +566,6 @@ function App() {
             totals={totals}
             expenseBreakdown={expenseBreakdown}
             onNavigate={setView}
-            onAdd={openForm}
           />
         )}
         {view === "transactions" && (
@@ -672,6 +669,30 @@ function TopBar({
   onAdd: () => void;
   onLogout: () => void;
 }) {
+  if (view === "home") {
+    return (
+      <header className="top-bar home-top-bar">
+        <div className="home-title-lockup">
+          <span className="brand-icon">
+            <Wallet size={20} />
+          </span>
+          <div>
+            <h1>Beranda</h1>
+            <p>{monthLabel} - {workspaceName}</p>
+          </div>
+        </div>
+        <div className="top-actions">
+          <button className="round-add-button" type="button" onClick={onAdd} aria-label="Catat transaksi">
+            <Plus size={22} />
+          </button>
+          <button className="avatar-button" type="button" onClick={onLogout} title="Logout">
+            {user.photoURL ? <img src={user.photoURL} alt={user.name} /> : user.name.slice(0, 1)}
+          </button>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="top-bar">
       <div>
@@ -717,61 +738,31 @@ function HomeView({
   totals,
   expenseBreakdown,
   onNavigate,
-  onAdd,
 }: {
   transactions: Transaction[];
   totals: { income: number; expense: number; net: number };
   expenseBreakdown: ReturnType<typeof categoryTotals>;
   onNavigate: (view: AppView) => void;
-  onAdd: (type: TransactionType) => void;
 }) {
-  const totalFlow = totals.income + totals.expense;
-  const incomePercent = totalFlow ? Math.round((totals.income / totalFlow) * 100) : 0;
-  const recent = transactions.slice(0, 7);
+  const recent = transactions.slice(0, 5);
 
   return (
-    <section className="view-stack">
-      <section className={`summary-hero ${totals.net < 0 ? "danger" : ""}`}>
-        <div className="summary-main">
-          <span className="status-pill">{totals.net >= 0 ? "SURPLUS" : "DEFISIT"}</span>
-          <h2>{currency(totals.net)}</h2>
-          <p>{totals.net >= 0 ? "Surplus bulan ini" : "Defisit bulan ini"}</p>
-        </div>
-        <div className="summary-meter" aria-label="Rasio masuk keluar">
-          <span style={{ width: `${incomePercent}%` }} />
-        </div>
-        <div className="summary-grid">
-          <Metric icon={ArrowDownLeft} label="Masuk" value={currency(totals.income)} tone="income" />
-          <Metric icon={ArrowUpRight} label="Keluar" value={currency(totals.expense)} tone="expense" />
-          <Metric icon={ReceiptText} label="Transaksi" value={`${transactions.length}`} />
-        </div>
+    <section className="view-stack home-view">
+      <section className="home-section">
+        <SectionHeader title="Transaksi terbaru" action="Lihat semua" onAction={() => onNavigate("transactions")} />
+        <TransactionList transactions={recent} compact variant="home" />
       </section>
 
-      <div className="shortcut-row">
-        <button type="button" onClick={() => onAdd("expense")}>
-          <BadgePlus size={20} />
-          <span>Catat</span>
-        </button>
-        <button type="button" onClick={() => onNavigate("budget")}>
-          <Wallet size={20} />
-          <span>Budget</span>
-        </button>
-        <button type="button" onClick={() => onNavigate("reports")}>
-          <PieChart size={20} />
-          <span>Laporan</span>
-        </button>
-      </div>
-
-      <div className="content-grid">
-        <section className="panel">
-          <SectionHeader title="Transaksi terbaru" action="Lihat semua" onAction={() => onNavigate("transactions")} />
-          <TransactionList transactions={recent} compact />
-        </section>
-        <section className="panel">
-          <SectionHeader title="Pengeluaran per kategori" value={currency(totals.expense)} />
-          <CategoryBreakdown items={expenseBreakdown.slice(0, 6)} />
-        </section>
-      </div>
+      <section className="home-section">
+        <SectionHeader title="Pengeluaran per kategori" action="Laporan" onAction={() => onNavigate("reports")} />
+        <div className="home-category-card">
+          <div className="home-category-total">
+            <span>Total keluar</span>
+            <strong>{currency(totals.expense)}</strong>
+          </div>
+          <CategoryBreakdown items={expenseBreakdown.slice(0, 6)} variant="home" />
+        </div>
+      </section>
     </section>
   );
 }
@@ -1566,11 +1557,13 @@ function SectionHeader({
 function TransactionList({
   transactions,
   compact,
+  variant,
   onEdit,
   onDelete,
 }: {
   transactions: Transaction[];
   compact?: boolean;
+  variant?: "home";
   onEdit?: (transaction: Transaction) => void;
   onDelete?: (id: string) => void;
 }) {
@@ -1579,7 +1572,7 @@ function TransactionList({
   }
 
   return (
-    <div className={`transaction-list ${compact ? "compact" : ""}`}>
+    <div className={`transaction-list ${compact ? "compact" : ""} ${variant ? `transaction-list-${variant}` : ""}`}>
       {transactions.map((transaction) => (
         <article className="transaction-row" key={transaction.id}>
           <CategoryIcon categoryId={transaction.category} />
@@ -1609,11 +1602,11 @@ function TransactionList({
   );
 }
 
-function CategoryBreakdown({ items }: { items: ReturnType<typeof categoryTotals> }) {
+function CategoryBreakdown({ items, variant }: { items: ReturnType<typeof categoryTotals>; variant?: "home" }) {
   if (!items.length) return <div className="empty-state">Belum ada data kategori.</div>;
 
   return (
-    <div className="breakdown-list">
+    <div className={`breakdown-list ${variant ? `breakdown-list-${variant}` : ""}`}>
       {items.map((item) => (
         <div className="breakdown-row" key={item.id}>
           <div className="breakdown-head">
