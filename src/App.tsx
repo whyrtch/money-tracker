@@ -129,6 +129,17 @@ const emptyForm = (): FormState => ({
 
 const moneyValue = (value: string) => Number(value.replace(/[^\d]/g, ""));
 
+const rupiahInput = (value: string | number) => {
+  const amount = typeof value === "number" ? value : moneyValue(value);
+  return amount > 0 ? currency(amount) : "";
+};
+
+const currencyInputChange =
+  (update: (value: string) => void) =>
+  (event: React.ChangeEvent<HTMLInputElement>) => {
+    update(String(moneyValue(event.target.value)));
+  };
+
 const isValidDate = (value: string) => !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
 
 const isCategoryAllowed = (categoryId: string, type: TransactionType) => {
@@ -871,8 +882,8 @@ function BudgetView({
                 Budget
                 <input
                   inputMode="numeric"
-                  value={String(item.spent + item.remaining)}
-                  onChange={(event) => onUpdateBudget(item.id, moneyValue(event.target.value))}
+                  value={rupiahInput(item.spent + item.remaining)}
+                  onChange={currencyInputChange((value) => onUpdateBudget(item.id, moneyValue(value)))}
                 />
               </label>
             </div>
@@ -1183,8 +1194,8 @@ function TransactionForm({
               <input
                 inputMode="numeric"
                 required
-                value={form.amount}
-                onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
+                value={rupiahInput(form.amount)}
+                onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, amount: value })))}
               />
             </label>
             <div className="form-grid">
@@ -1223,8 +1234,8 @@ function TransactionForm({
               <input
                 inputMode="numeric"
                 required
-                value={form.amount}
-                onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
+                value={rupiahInput(form.amount)}
+                onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, amount: value })))}
               />
             </label>
             <div className="form-grid">
@@ -1261,8 +1272,8 @@ function TransactionForm({
                   <input
                     inputMode="numeric"
                     required
-                    value={form.monthlyAmount}
-                    onChange={(event) => updateForm((current) => ({ ...current, monthlyAmount: event.target.value }))}
+                    value={rupiahInput(form.monthlyAmount)}
+                    onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, monthlyAmount: value })))}
                   />
                 </label>
                 <label>
@@ -1282,8 +1293,8 @@ function TransactionForm({
               Denda awal
               <input
                 inputMode="numeric"
-                value={form.fineAmount}
-                onChange={(event) => updateForm((current) => ({ ...current, fineAmount: event.target.value }))}
+                value={rupiahInput(form.fineAmount)}
+                onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, fineAmount: value })))}
               />
             </label>
           </>
@@ -1320,16 +1331,16 @@ function TransactionForm({
                     <input
                       inputMode="numeric"
                       required
-                      value={form.amount}
-                      onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
+                      value={rupiahInput(form.amount)}
+                      onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, amount: value })))}
                     />
                   </label>
                   <label>
                     Denda
                     <input
                       inputMode="numeric"
-                      value={form.fineAmount}
-                      onChange={(event) => updateForm((current) => ({ ...current, fineAmount: event.target.value }))}
+                      value={rupiahInput(form.fineAmount)}
+                      onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, fineAmount: value })))}
                     />
                   </label>
                 </div>
