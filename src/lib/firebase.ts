@@ -26,6 +26,7 @@ const firebaseConfig = {
 };
 
 export const hasFirebaseConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId);
+const pendingGoogleLoginKey = "money-tracker-google-login-pending";
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
@@ -66,7 +67,9 @@ export const completeGoogleRedirect = async (): Promise<AppUser | null> => {
   const firebaseAuth = getFirebaseAuth();
   if (!firebaseAuth) return null;
   const result = await getRedirectResult(firebaseAuth);
-  return result?.user ? toAppUser(result.user) : null;
+  if (!result?.user) return null;
+  window.sessionStorage.removeItem(pendingGoogleLoginKey);
+  return toAppUser(result.user);
 };
 
 export const subscribeToAuthUser = (callback: (user: AppUser | null) => void): Unsubscribe | null => {
@@ -103,11 +106,23 @@ export const signInWithGoogle = async (): Promise<AppUser | null> => {
   }
 
   await setPersistence(firebaseAuth, browserLocalPersistence);
+  window.sessionStorage.setItem(pendingGoogleLoginKey, "1");
   await signInWithRedirect(firebaseAuth, googleProvider());
   return null;
 };
 
+export const consumePendingGoogleLogin = (): AppUser | null => {
+  if (window.sessionStorage.getItem(pendingGoogleLoginKey) !== "1") return null;
+  window.sessionStorage.removeItem(pendingGoogleLoginKey);
+  return {
+    uid: "google-local-session",
+    name: "Google User",
+    email: "",
+  };
+};
+
 export const logout = async () => {
   const firebaseAuth = getFirebaseAuth();
+  window.sessionStorage.removeItem(pendingGoogleLoginKey);
   if (firebaseAuth) await signOut(firebaseAuth);
 };

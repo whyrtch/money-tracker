@@ -52,6 +52,7 @@ import {
 import {
   authErrorMessage,
   completeGoogleRedirect,
+  consumePendingGoogleLogin,
   getCurrentAuthUser,
   hasFirebaseConfig,
   logout,
@@ -298,7 +299,7 @@ function App() {
       unsubscribe = subscribeToAuthUser((signedInUser) => {
         if (cancelled) return;
         setAuthError("");
-        setUser(signedInUser);
+        if (signedInUser) setUser(signedInUser);
         setAuthReady(true);
       });
       if (!unsubscribe) setAuthReady(true);
@@ -307,7 +308,7 @@ function App() {
     completeGoogleRedirect()
       .then((signedInUser) => {
         if (cancelled) return;
-        const currentUser = signedInUser ?? getCurrentAuthUser();
+        const currentUser = signedInUser ?? getCurrentAuthUser() ?? consumePendingGoogleLogin();
         if (currentUser) {
           setAuthError("");
           setUser(currentUser);
