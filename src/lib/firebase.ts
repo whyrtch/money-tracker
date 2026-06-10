@@ -5,10 +5,13 @@ import {
   getAuth,
   getRedirectResult,
   GoogleAuthProvider,
+  onAuthStateChanged,
   setPersistence,
+  signInWithPopup,
   signInWithRedirect,
   signOut,
   type Auth,
+  type Unsubscribe,
   type User,
 } from "firebase/auth";
 import type { AppUser } from "../types";
@@ -67,6 +70,14 @@ export const completeGoogleRedirect = async (): Promise<AppUser | null> => {
   return result?.user ? toAppUser(result.user) : null;
 };
 
+export const subscribeToAuthUser = (callback: (user: AppUser | null) => void): Unsubscribe | null => {
+  const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) return null;
+  return onAuthStateChanged(firebaseAuth, (user) => {
+    callback(user ? toAppUser(user) : null);
+  });
+};
+
 export const signInWithGoogle = async (): Promise<AppUser | null> => {
   const firebaseAuth = getFirebaseAuth();
   if (!firebaseAuth) {
@@ -79,8 +90,17 @@ export const signInWithGoogle = async (): Promise<AppUser | null> => {
   }
 
   await setPersistence(firebaseAuth, browserLocalPersistence);
-  await signInWithRedirect(firebaseAuth, googleProvider());
-  return null;
+  try {
+    const result = await signInWithPopup(firebaseAuth, googleProvider());
+    return toAppUser(result.user);
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+    if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+      await signInWithRedirect(firebaseAuth, googleProvider());
+      return null;
+    }
+    throw error;
+  }
 };
 
 export const logout = async () => {

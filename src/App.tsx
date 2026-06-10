@@ -49,7 +49,7 @@ import {
   transactionTotals,
   workspaceName,
 } from "./data";
-import { completeGoogleRedirect, hasFirebaseConfig, logout, signInWithGoogle } from "./lib/firebase";
+import { completeGoogleRedirect, hasFirebaseConfig, logout, signInWithGoogle, subscribeToAuthUser } from "./lib/firebase";
 import type { AppState, AppUser, AppView, Budget, Debt, Transaction, TransactionType } from "./types";
 
 type FormMode =
@@ -283,6 +283,12 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
+    const unsubscribe = subscribeToAuthUser((signedInUser) => {
+      if (cancelled) return;
+      setAuthError("");
+      setUser(signedInUser);
+    });
+
     completeGoogleRedirect()
       .then((signedInUser) => {
         if (!cancelled && signedInUser) {
@@ -295,6 +301,7 @@ function App() {
       });
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   }, []);
 
