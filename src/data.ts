@@ -10,7 +10,7 @@ import {
   ShoppingBag,
   Utensils,
 } from "lucide-react";
-import type { AppState, Category, Debt, Transaction, TransactionType } from "./types";
+import type { AppState, Budget, Category, Debt, Transaction, TransactionType } from "./types";
 
 export const monthLabel = "Juni 2026";
 export const workspaceName = "Tiga Awan Studio";
@@ -25,99 +25,22 @@ export const categories: Category[] = [
   { id: "transport", name: "Transportasi", kind: "expense", color: "#23bf73", softColor: "#def8ea", icon: Car, budget: 200000 },
   { id: "shopping", name: "Belanja", kind: "expense", color: "#64748b", softColor: "#eef2f7", icon: ShoppingBag, budget: 250000 },
   { id: "debt-payment", name: "Pembayaran Hutang", kind: "expense", color: "#c2185b", softColor: "#ffe2ee", icon: Landmark, budget: 0 },
-  { id: "receivable", name: "Penerimaan Piutang", kind: "income", color: "#0f9f61", softColor: "#e1f8ec", icon: Banknote },
   { id: "fine", name: "Denda", kind: "expense", color: "#b45309", softColor: "#fff0d8", icon: Bolt, budget: 0 },
   { id: "other", name: "Lain-lain", kind: "both", color: "#5f6f82", softColor: "#eef2f4", icon: Package, budget: 150000 },
   { id: "saving", name: "Tabungan", kind: "both", color: "#0f9f61", softColor: "#e1f8ec", icon: PiggyBank, budget: 0 },
 ];
 
-const tx = (
-  id: number,
-  date: string,
-  title: string,
-  type: TransactionType,
-  amount: number,
-  category: string,
-  account = "dana",
-  note = "",
-): Transaction => ({
-  id: `TX-${String(id).padStart(6, "0")}`,
-  date,
-  title,
-  type,
-  amount,
-  category,
-  account,
-  note,
-});
+export const seedTransactions: Transaction[] = [];
+export const seedDebts: Debt[] = [];
 
-export const seedTransactions: Transaction[] = [
-  tx(42, "2026-06-05", "jajan", "expense", 10000, "food"),
-  tx(41, "2026-06-05", "jajan", "expense", 16000, "food"),
-  tx(40, "2026-06-05", "transport", "expense", 30000, "transport"),
-  tx(39, "2026-06-05", "kopi team", "expense", 45000, "food"),
-  tx(38, "2026-06-05", "yakult", "expense", 21500, "other"),
-  tx(37, "2026-06-05", "yakult", "expense", 21500, "other"),
-  tx(36, "2026-06-05", "jajan minum", "expense", 13000, "food"),
-  tx(35, "2026-06-05", "domain wafin.id", "expense", 248049, "utilities", "bank", "renewal domain"),
-  tx(34, "2026-06-04", "suntik", "expense", 265000, "health"),
-  tx(33, "2026-06-04", "cabut gigi", "expense", 250000, "health"),
-  tx(32, "2026-06-04", "obat", "expense", 81000, "health"),
-  tx(31, "2026-06-04", "bioskop", "expense", 95000, "entertainment"),
-  tx(30, "2026-06-04", "game pass", "expense", 60000, "entertainment"),
-  tx(29, "2026-06-04", "makan siang", "expense", 52000, "food"),
-  tx(28, "2026-06-04", "snack meeting", "expense", 41000, "food"),
-  tx(27, "2026-06-04", "parkir", "expense", 12000, "transport"),
-  tx(26, "2026-06-04", "bensin", "expense", 42000, "transport"),
-  tx(25, "2026-06-04", "listrik", "expense", 100000, "utilities"),
-  tx(24, "2026-06-04", "internet", "expense", 0, "utilities"),
-  tx(23, "2026-06-03", "makan malam", "expense", 56000, "food"),
-  tx(22, "2026-06-03", "air mineral", "expense", 9000, "food"),
-  tx(21, "2026-06-03", "cloud storage", "expense", 0, "utilities"),
-  tx(20, "2026-06-03", "template aset", "expense", 28000, "shopping"),
-  tx(19, "2026-06-03", "tools design", "expense", 0, "utilities"),
-  tx(18, "2026-06-03", "top up ewallet", "expense", 0, "other"),
-  tx(17, "2026-06-03", "fee admin", "expense", 0, "other"),
-  tx(16, "2026-06-03", "refund kecil", "income", 40000, "income"),
-  tx(15, "2026-06-03", "transfer project", "income", 3500000, "transfer", "bank"),
-  tx(14, "2026-06-03", "transfer project", "income", 5200000, "transfer", "bank"),
-  tx(13, "2026-06-03", "transfer project", "income", 7000000, "transfer", "bank"),
-  tx(12, "2026-06-03", "transfer project", "income", 9147000, "transfer", "bank"),
-  tx(11, "2026-06-02", "uang masuk", "income", 5000000, "transfer", "bank"),
-  tx(10, "2026-06-02", "donat", "expense", 22000, "food"),
-  tx(9, "2026-06-02", "makan pagi", "expense", 20000, "food"),
-  tx(8, "2026-06-01", "langganan app", "expense", 0, "utilities"),
-  tx(7, "2026-06-01", "catatan lain", "expense", 0, "other"),
-];
-
-export const seedDebts: Debt[] = [
-  {
-    id: "debt-motor",
-    name: "Motor",
-    type: "debt",
-    mode: "installment",
-    originalAmount: 3079700,
-    remainingAmount: 1740700,
-    monthlyAmount: 133900,
-    finePaid: 111000,
-    installments: [
-      { id: "1", dueDate: "2026-07-03", amount: 0, finePaid: 111000, paid: true },
-      { id: "2", dueDate: "2026-06-12", amount: 133900, paid: false },
-      { id: "3", dueDate: "2026-07-12", amount: 133900, paid: false },
-      { id: "4", dueDate: "2026-08-12", amount: 133900, paid: false },
-      { id: "5", dueDate: "2026-09-12", amount: 133900, paid: false },
-      { id: "6", dueDate: "2026-10-12", amount: 133900, paid: false },
-      { id: "7", dueDate: "2026-11-12", amount: 133900, paid: false },
-      { id: "8", dueDate: "2026-12-12", amount: 133900, paid: false },
-      { id: "9", dueDate: "2027-01-12", amount: 133900, paid: false },
-      { id: "10", dueDate: "2027-02-12", amount: 133900, paid: false },
-    ],
-  },
-];
+export const seedBudgets: Budget[] = categories
+  .filter((category) => category.kind === "expense" && category.budget !== undefined)
+  .map((category) => ({ categoryId: category.id, amount: category.budget ?? 0 }));
 
 export const initialState: AppState = {
   transactions: seedTransactions,
   debts: seedDebts,
+  budgets: seedBudgets,
 };
 
 export const getCategory = (id: string) => categories.find((category) => category.id === id) ?? categories[categories.length - 1];

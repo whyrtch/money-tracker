@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  BadgePlus,
   BarChart3,
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronUp,
   CircleDollarSign,
   Download,
   FileText,
@@ -15,9 +15,10 @@ import {
   LayoutGrid,
   LogOut,
   MoreHorizontal,
-  PieChart,
+  Pencil,
   Plus,
   ReceiptText,
+  Scale,
   Search,
   Settings,
   Trash2,
@@ -44,19 +45,27 @@ import {
   initialState,
   makeTransactionId,
   monthLabel,
+  seedBudgets,
   transactionTotals,
   workspaceName,
 } from "./data";
-import { hasFirebaseConfig, logout, signInWithGoogle } from "./lib/firebase";
-import type { AppState, AppUser, AppView, Debt, DebtType, Transaction, TransactionType } from "./types";
+import {
+  authErrorMessage,
+  completeGoogleRedirect,
+  consumePendingGoogleLogin,
+  getCurrentAuthUser,
+  hasFirebaseConfig,
+  logout,
+  signInWithGoogle,
+  subscribeToAuthUser,
+} from "./lib/firebase";
+import type { AppState, AppUser, AppView, Budget, Debt, Transaction, TransactionType } from "./types";
 
 type FormMode =
   | "expense"
   | "income"
   | "debt"
-  | "receivable"
   | "debt_installment"
-  | "receivable_installment"
   | "payment";
 
 type FormState = {
@@ -78,7 +87,7 @@ type FormState = {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
-const stateStorageKey = "money-tracker-state-v1";
+const stateStorageKey = "money-tracker-state-v2";
 const userStorageKey = "money-tracker-user-v1";
 
 const loadInitialState = (): AppState => {
@@ -87,7 +96,10 @@ const loadInitialState = (): AppState => {
     if (!stored) return initialState;
     const parsed = JSON.parse(stored) as AppState;
     if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.debts)) return initialState;
-    return parsed;
+    return {
+      ...parsed,
+      budgets: Array.isArray(parsed.budgets) ? parsed.budgets : seedBudgets,
+    };
   } catch {
     return initialState;
   }
@@ -124,6 +136,17 @@ const emptyForm = (): FormState => ({
 
 const moneyValue = (value: string) => Number(value.replace(/[^\d]/g, ""));
 
+const rupiahInput = (value: string | number) => {
+  const amount = typeof value === "number" ? value : moneyValue(value);
+  return amount > 0 ? currency(amount) : "";
+};
+
+const currencyInputChange =
+  (update: (value: string) => void) =>
+  (event: React.ChangeEvent<HTMLInputElement>) => {
+    update(String(moneyValue(event.target.value)));
+  };
+
 const isValidDate = (value: string) => !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
 
 const isCategoryAllowed = (categoryId: string, type: TransactionType) => {
@@ -151,15 +174,13 @@ const validateForm = (form: FormState, debts: Debt[]) => {
 
   if (
     form.mode === "debt" ||
-    form.mode === "receivable" ||
-    form.mode === "debt_installment" ||
-    form.mode === "receivable_installment"
+    form.mode === "debt_installment"
   ) {
-    if (!form.title.trim()) errors.push("Nama hutang/piutang wajib diisi.");
+    if (!form.title.trim()) errors.push("Nama hutang wajib diisi.");
     if (amount <= 0) errors.push("Total wajib lebih dari 0.");
     if (!isValidDate(form.date)) errors.push("Tanggal mulai wajib valid.");
 
-    if (form.mode === "debt" || form.mode === "receivable") {
+    if (form.mode === "debt") {
       if (!isValidDate(form.dueDate)) errors.push("Tanggal jatuh tempo wajib valid.");
       if (isValidDate(form.date) && isValidDate(form.dueDate) && form.dueDate < form.date) {
         errors.push("Jatuh tempo tidak boleh sebelum tanggal mulai.");
@@ -169,17 +190,17 @@ const validateForm = (form: FormState, debts: Debt[]) => {
       if (monthlyAmount <= 0) errors.push("Nominal cicilan wajib lebih dari 0.");
       if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) errors.push("Tanggal jatuh tempo cicilan harus 1-31.");
       if (monthlyAmount > 0 && installmentCount > 0 && monthlyAmount * installmentCount < amount) {
-        errors.push("Total jadwal cicilan harus menutup total hutang/piutang.");
+        errors.push("Total jadwal cicilan harus menutup total hutang.");
       }
     }
   }
 
   if (form.mode === "payment") {
-    if (!activeDebts.length) errors.push("Belum ada hutang atau piutang aktif untuk dibayar.");
-    if (!form.debtId || !selectedDebt) errors.push("Pilih hutang/piutang yang akan dibayar.");
+    if (!activeDebts.length) errors.push("Belum ada hutang aktif untuk dibayar.");
+    if (!form.debtId || !selectedDebt) errors.push("Pilih hutang yang akan dibayar.");
     if (amount <= 0) errors.push("Nominal bayar wajib lebih dari 0.");
     if (selectedDebt && amount > selectedDebt.remainingAmount) {
-      errors.push("Nominal bayar tidak boleh melebihi sisa hutang/piutang.");
+      errors.push("Nominal bayar tidak boleh melebihi sisa hutang.");
     }
     if (!isValidDate(form.date)) errors.push("Tanggal bayar wajib valid.");
     if (!form.account) errors.push("Akun wajib dipilih.");
@@ -246,6 +267,10 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [authError, setAuthError] = useState("");
+  const [authReady, setAuthReady] = useState(!hasFirebaseConfig);
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
+  const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -266,25 +291,126 @@ function App() {
     }
   }, [user]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: ReturnType<typeof subscribeToAuthUser> = null;
+
+    const attachAuthListener = () => {
+      unsubscribe = subscribeToAuthUser((signedInUser) => {
+        if (cancelled) return;
+        setAuthError("");
+        if (signedInUser) setUser(signedInUser);
+        setAuthReady(true);
+      });
+      if (!unsubscribe) setAuthReady(true);
+    };
+
+    completeGoogleRedirect()
+      .then((signedInUser) => {
+        if (cancelled) return;
+        const currentUser = signedInUser ?? getCurrentAuthUser() ?? consumePendingGoogleLogin();
+        if (currentUser) {
+          setAuthError("");
+          setUser(currentUser);
+        }
+        attachAuthListener();
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setAuthError(authErrorMessage(error));
+        attachAuthListener();
+      });
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
   const startSignIn = async () => {
-    const signedInUser = await signInWithGoogle();
-    setUser(signedInUser);
+    setAuthError("");
+    try {
+      const signedInUser = await signInWithGoogle();
+      if (signedInUser) setUser(signedInUser);
+    } catch (error) {
+      setAuthError(authErrorMessage(error));
+    }
   };
 
   const startLogout = async () => {
-    await logout();
-    setUser(null);
+    try {
+      await logout();
+    } finally {
+      setUser(null);
+      setView("home");
+      setShowForm(false);
+    }
+  };
+
+  const resetDemoData = () => {
+    setState(initialState);
+    setTypeFilter("all");
+    setCategoryFilter("all");
+    setView("home");
   };
 
   const openForm = (type: TransactionType = "expense") => {
     setFormErrors([]);
+    setEditingTransactionId(null);
+    setEditingDebtId(null);
     setForm({ ...emptyForm(), mode: type, type, category: type === "income" ? "income" : "food" });
+    setShowForm(true);
+  };
+
+  const openDebtForm = () => {
+    setFormErrors([]);
+    setEditingTransactionId(null);
+    setEditingDebtId(null);
+    setForm({ ...emptyForm(), mode: "debt_installment" });
+    setShowForm(true);
+  };
+
+  const openEditDebt = (debt: Debt) => {
+    setFormErrors([]);
+    setEditingTransactionId(null);
+    setEditingDebtId(debt.id);
+    setForm({
+      ...emptyForm(),
+      mode: debt.mode === "installment" ? "debt_installment" : "debt",
+      title: debt.name,
+      amount: String(debt.originalAmount),
+      date: debt.startDate ?? today(),
+      dueDate: debt.dueDate ?? today(),
+      dueDay: String(debt.dueDay ?? new Date(`${debt.installments[0]?.dueDate ?? today()}T00:00:00`).getDate()),
+      installmentCount: String(Math.max(1, debt.installments.length || 1)),
+      monthlyAmount: String(debt.monthlyAmount || ""),
+      fineAmount: String(debt.finePaid || ""),
+      note: debt.note ?? "",
+    });
+    setShowForm(true);
+  };
+
+  const openEditTransaction = (transaction: Transaction) => {
+    setFormErrors([]);
+    setEditingTransactionId(transaction.id);
+    setEditingDebtId(null);
+    setForm({
+      ...emptyForm(),
+      mode: transaction.type,
+      title: transaction.title,
+      amount: String(transaction.amount),
+      type: transaction.type,
+      category: transaction.category,
+      account: transaction.account,
+      date: transaction.date,
+      note: transaction.note ?? "",
+    });
     setShowForm(true);
   };
 
   const openPaymentForm = (debtId: string) => {
     const debt = state.debts.find((item) => item.id === debtId);
     setFormErrors([]);
+    setEditingDebtId(null);
     setForm({
       ...emptyForm(),
       mode: "payment",
@@ -309,7 +435,7 @@ function App() {
     if (form.mode === "expense" || form.mode === "income") {
       if (!title || amount <= 0) return;
       const transaction: Transaction = {
-        id: makeTransactionId(state.transactions),
+        id: editingTransactionId ?? makeTransactionId(state.transactions),
         date: form.date,
         title,
         type: form.type,
@@ -319,38 +445,51 @@ function App() {
         note: form.note.trim() || undefined,
         source: "web",
       };
-      setState((current) => ({ ...current, transactions: [transaction, ...current.transactions] }));
+      setState((current) => ({
+        ...current,
+        transactions: editingTransactionId
+          ? current.transactions.map((item) => (item.id === editingTransactionId ? transaction : item))
+          : [transaction, ...current.transactions],
+      }));
+      setEditingTransactionId(null);
       setShowForm(false);
       return;
     }
 
     if (
       form.mode === "debt" ||
-      form.mode === "receivable" ||
-      form.mode === "debt_installment" ||
-      form.mode === "receivable_installment"
+      form.mode === "debt_installment"
     ) {
       if (!title || amount <= 0) return;
-      const debtType: DebtType = form.mode.startsWith("receivable") ? "receivable" : "debt";
       const isInstallment = form.mode.endsWith("installment");
       const installmentCount = Math.max(1, Number(form.installmentCount) || 1);
       const monthlyAmount = isInstallment ? moneyValue(form.monthlyAmount) || Math.ceil(amount / installmentCount) : 0;
       const dueDay = Math.min(31, Math.max(1, Number(form.dueDay) || new Date(`${form.date}T00:00:00`).getDate()));
+      const existingDebt = state.debts.find((debt) => debt.id === editingDebtId);
+      const paidAmount = existingDebt ? Math.max(0, existingDebt.originalAmount - existingDebt.remainingAmount) : 0;
       const debt: Debt = {
-        id: makeDebtId(state.debts, title),
+        id: editingDebtId ?? makeDebtId(state.debts, title),
         name: title,
-        type: debtType,
+        type: "debt",
         mode: isInstallment ? "installment" : "simple",
         originalAmount: amount,
-        remainingAmount: amount,
+        remainingAmount: Math.max(0, amount - paidAmount),
         monthlyAmount,
         finePaid: fineAmount || undefined,
         startDate: form.date,
         dueDate: isInstallment ? undefined : form.dueDate,
         dueDay: isInstallment ? dueDay : undefined,
+        note: form.note.trim() || undefined,
         installments: isInstallment ? makeDebtInstallments(form.date, installmentCount, dueDay, monthlyAmount, amount) : [],
       };
-      setState((current) => ({ ...current, debts: [debt, ...current.debts] }));
+      setState((current) => ({
+        ...current,
+        debts: editingDebtId
+          ? current.debts.map((item) => (item.id === editingDebtId ? debt : item))
+          : [debt, ...current.debts],
+      }));
+      setEditingTransactionId(null);
+      setEditingDebtId(null);
       setView("debts");
       setShowForm(false);
       return;
@@ -369,9 +508,9 @@ function App() {
             id: makeTransactionId([...current.transactions, ...transactions]),
             date: form.date,
             title: `Bayar ${selected.name}`,
-            type: selected.type === "debt" ? "expense" : "income",
+            type: "expense",
             amount: paymentAmount,
-            category: selected.type === "debt" ? "debt-payment" : "receivable",
+            category: "debt-payment",
             account: form.account,
             note: form.note.trim() || `Pembayaran ${selected.name}`,
             source: "web",
@@ -383,7 +522,7 @@ function App() {
             id: makeTransactionId([...current.transactions, ...transactions]),
             date: form.date,
             title: `Denda ${selected.name}`,
-            type: selected.type === "debt" ? "expense" : "income",
+            type: "expense",
             amount: fineAmount,
             category: "fine",
             account: form.account,
@@ -407,9 +546,11 @@ function App() {
           };
         });
 
-        return { debts, transactions: [...transactions, ...current.transactions] };
+        return { ...current, debts, transactions: [...transactions, ...current.transactions] };
       });
       setView("debts");
+      setEditingTransactionId(null);
+      setEditingDebtId(null);
       setShowForm(false);
       return;
     }
@@ -419,6 +560,19 @@ function App() {
 
   const deleteTransaction = (id: string) => {
     setState((current) => ({ ...current, transactions: current.transactions.filter((item) => item.id !== id) }));
+  };
+
+  const deleteDebt = (id: string) => {
+    setState((current) => ({ ...current, debts: current.debts.filter((debt) => debt.id !== id) }));
+  };
+
+  const updateBudget = (categoryId: string, amount: number) => {
+    setState((current) => {
+      const budgets = current.budgets.some((budget) => budget.categoryId === categoryId)
+        ? current.budgets.map((budget) => (budget.categoryId === categoryId ? { ...budget, amount } : budget))
+        : [...current.budgets, { categoryId, amount }];
+      return { ...current, budgets };
+    });
   };
 
   const exportCsv = () => {
@@ -446,7 +600,7 @@ function App() {
   };
 
   if (!user) {
-    return <LoginScreen onLogin={startSignIn} />;
+    return <LoginScreen authError={authError} authReady={authReady} onLogin={startSignIn} />;
   }
 
   return (
@@ -469,7 +623,6 @@ function App() {
             totals={totals}
             expenseBreakdown={expenseBreakdown}
             onNavigate={setView}
-            onAdd={openForm}
           />
         )}
         {view === "transactions" && (
@@ -480,11 +633,12 @@ function App() {
             setTypeFilter={setTypeFilter}
             setCategoryFilter={setCategoryFilter}
             onAdd={() => openForm("expense")}
+            onEdit={openEditTransaction}
             onDelete={deleteTransaction}
             onExport={exportCsv}
           />
         )}
-        {view === "budget" && <BudgetView transactions={state.transactions} />}
+        {view === "budget" && <BudgetView budgets={state.budgets} transactions={state.transactions} onUpdateBudget={updateBudget} />}
         {view === "reports" && (
           <ReportsView
             transactions={state.transactions}
@@ -494,8 +648,10 @@ function App() {
             incomeBreakdown={incomeBreakdown}
           />
         )}
-        {view === "debts" && <DebtsView debts={state.debts} onPay={openPaymentForm} />}
-        {view === "more" && <MoreView user={user} onNavigate={setView} onLogout={startLogout} />}
+        {view === "debts" && (
+          <DebtsView debts={state.debts} onAdd={openDebtForm} onDelete={deleteDebt} onEdit={openEditDebt} onPay={openPaymentForm} />
+        )}
+        {view === "more" && <MoreView user={user} onNavigate={setView} onLogout={startLogout} onResetData={resetDemoData} />}
       </main>
 
       <nav className="bottom-nav" aria-label="Navigasi bawah">
@@ -513,6 +669,8 @@ function App() {
           onClearErrors={() => setFormErrors([])}
           onClose={() => {
             setFormErrors([]);
+            setEditingTransactionId(null);
+            setEditingDebtId(null);
             setShowForm(false);
           }}
           onSubmit={saveForm}
@@ -522,7 +680,7 @@ function App() {
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
+function LoginScreen({ authError, authReady, onLogin }: { authError: string; authReady: boolean; onLogin: () => void }) {
   return (
     <main className="login-screen">
       <section className="login-panel">
@@ -531,12 +689,17 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <p className="eyebrow">Money Tracker</p>
           <h1>Kelola arus kas Juni dengan cepat.</h1>
           <p className="muted">
-            Demo data sudah siap untuk transaksi, budget, laporan, dan hutang.
+            Mulai dari data kosong untuk transaksi, budget, laporan, dan hutang.
           </p>
         </div>
-        <button className="primary-button large-button" type="button" onClick={onLogin}>
+        {authError && (
+          <div className="form-errors" role="alert" aria-live="polite">
+            <p>{authError}</p>
+          </div>
+        )}
+        <button className="primary-button large-button" type="button" onClick={onLogin} disabled={!authReady}>
           <CircleDollarSign size={20} />
-          {hasFirebaseConfig ? "Login Google" : "Masuk Mode Demo"}
+          {!authReady ? "Menyiapkan login..." : hasFirebaseConfig ? "Login Google" : "Masuk Mode Demo"}
         </button>
       </section>
     </main>
@@ -568,6 +731,30 @@ function TopBar({
   onAdd: () => void;
   onLogout: () => void;
 }) {
+  if (view === "home" || view === "transactions") {
+    return (
+      <header className="top-bar home-top-bar">
+        <div className="home-title-lockup">
+          <span className="brand-icon">
+            <Wallet size={20} />
+          </span>
+          <div>
+            <h1>{viewTitle[view]}</h1>
+            <p>{monthLabel} - {workspaceName}</p>
+          </div>
+        </div>
+        <div className="top-actions">
+          <button className="round-add-button" type="button" onClick={onAdd} aria-label="Catat transaksi">
+            <Plus size={22} />
+          </button>
+          <button className="avatar-button" type="button" onClick={onLogout} title="Logout">
+            {user.photoURL ? <img src={user.photoURL} alt={user.name} /> : user.name.slice(0, 1)}
+          </button>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="top-bar">
       <div>
@@ -601,7 +788,7 @@ function NavButton({
 }) {
   const Icon = item.icon;
   return (
-    <button className={`nav-button ${active ? "active" : ""}`} type="button" onClick={onClick}>
+    <button className={`nav-button ${active ? "active" : ""}`} type="button" onClick={onClick} aria-label={item.label}>
       <Icon size={20} />
       <span>{item.label}</span>
     </button>
@@ -613,61 +800,31 @@ function HomeView({
   totals,
   expenseBreakdown,
   onNavigate,
-  onAdd,
 }: {
   transactions: Transaction[];
   totals: { income: number; expense: number; net: number };
   expenseBreakdown: ReturnType<typeof categoryTotals>;
   onNavigate: (view: AppView) => void;
-  onAdd: (type: TransactionType) => void;
 }) {
-  const totalFlow = totals.income + totals.expense;
-  const incomePercent = totalFlow ? Math.round((totals.income / totalFlow) * 100) : 0;
-  const recent = transactions.slice(0, 7);
+  const recent = transactions.slice(0, 5);
 
   return (
-    <section className="view-stack">
-      <section className={`summary-hero ${totals.net < 0 ? "danger" : ""}`}>
-        <div className="summary-main">
-          <span className="status-pill">{totals.net >= 0 ? "SURPLUS" : "DEFISIT"}</span>
-          <h2>{currency(totals.net)}</h2>
-          <p>{totals.net >= 0 ? "Surplus bulan ini" : "Defisit bulan ini"}</p>
-        </div>
-        <div className="summary-meter" aria-label="Rasio masuk keluar">
-          <span style={{ width: `${incomePercent}%` }} />
-        </div>
-        <div className="summary-grid">
-          <Metric icon={ArrowDownLeft} label="Masuk" value={currency(totals.income)} tone="income" />
-          <Metric icon={ArrowUpRight} label="Keluar" value={currency(totals.expense)} tone="expense" />
-          <Metric icon={ReceiptText} label="Transaksi" value={`${transactions.length}`} />
-        </div>
+    <section className="view-stack home-view">
+      <section className="home-section">
+        <SectionHeader title="Transaksi terbaru" action="Lihat semua" onAction={() => onNavigate("transactions")} />
+        <TransactionList transactions={recent} compact variant="home" />
       </section>
 
-      <div className="shortcut-row">
-        <button type="button" onClick={() => onAdd("expense")}>
-          <BadgePlus size={20} />
-          <span>Catat</span>
-        </button>
-        <button type="button" onClick={() => onNavigate("budget")}>
-          <Wallet size={20} />
-          <span>Budget</span>
-        </button>
-        <button type="button" onClick={() => onNavigate("reports")}>
-          <PieChart size={20} />
-          <span>Laporan</span>
-        </button>
-      </div>
-
-      <div className="content-grid">
-        <section className="panel">
-          <SectionHeader title="Transaksi terbaru" action="Lihat semua" onAction={() => onNavigate("transactions")} />
-          <TransactionList transactions={recent} compact />
-        </section>
-        <section className="panel">
-          <SectionHeader title="Pengeluaran per kategori" value={currency(totals.expense)} />
-          <CategoryBreakdown items={expenseBreakdown.slice(0, 6)} />
-        </section>
-      </div>
+      <section className="home-section">
+        <SectionHeader title="Pengeluaran per kategori" action="Laporan" onAction={() => onNavigate("reports")} />
+        <div className="home-category-card">
+          <div className="home-category-total">
+            <span>Total keluar</span>
+            <strong>{currency(totals.expense)}</strong>
+          </div>
+          <CategoryBreakdown items={expenseBreakdown.slice(0, 6)} variant="home" />
+        </div>
+      </section>
     </section>
   );
 }
@@ -703,6 +860,7 @@ function TransactionsView({
   setTypeFilter,
   setCategoryFilter,
   onAdd,
+  onEdit,
   onDelete,
   onExport,
 }: {
@@ -712,6 +870,7 @@ function TransactionsView({
   setTypeFilter: (value: "all" | TransactionType) => void;
   setCategoryFilter: (value: string) => void;
   onAdd: () => void;
+  onEdit: (transaction: Transaction) => void;
   onDelete: (id: string) => void;
   onExport: () => void;
 }) {
@@ -721,73 +880,158 @@ function TransactionsView({
       (categoryFilter === "all" || item.category === categoryFilter),
   );
   const totals = transactionTotals(filtered);
+  const maxTotal = Math.max(totals.income, totals.expense, Math.abs(totals.net), 1);
 
   return (
-    <section className="view-stack">
-      <div className="toolbar">
-        <div className="segmented">
-          <button className={typeFilter === "all" ? "active" : ""} type="button" onClick={() => setTypeFilter("all")}>
-            Semua
-          </button>
-          <button
-            className={typeFilter === "income" ? "active" : ""}
-            type="button"
-            onClick={() => setTypeFilter("income")}
-          >
-            Masuk
-          </button>
-          <button
-            className={typeFilter === "expense" ? "active" : ""}
-            type="button"
-            onClick={() => setTypeFilter("expense")}
-          >
-            Keluar
-          </button>
-        </div>
-        <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-          <option value="all">Semua kategori</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-        <button className="icon-text-button" type="button" onClick={onExport}>
+    <section className="view-stack transactions-view">
+      <section className="transactions-heading">
+        <h2>Transaksi</h2>
+        <p>{filtered.length} entri</p>
+      </section>
+
+      <div className="transactions-action-row">
+        <span>Pilih</span>
+        <button className="icon-text-button transaction-export-button" type="button" onClick={onExport}>
           <Download size={18} />
-          CSV
+          Export CSV
         </button>
-        <button className="primary-button" type="button" onClick={onAdd}>
+        <button className="primary-button transaction-add-button" type="button" onClick={onAdd}>
           <Plus size={18} />
           Tambah
         </button>
       </div>
 
-      <div className="summary-grid flat">
-        <Metric icon={ReceiptText} label="Entri" value={`${filtered.length}`} />
-        <Metric icon={ArrowDownLeft} label="Masuk" value={currency(totals.income)} tone="income" />
-        <Metric icon={ArrowUpRight} label="Keluar" value={currency(totals.expense)} tone="expense" />
-        <Metric icon={CircleDollarSign} label="Netto" value={currency(totals.net)} />
-      </div>
+      <section className="transaction-summary-card">
+        <div className="transaction-summary-head">
+          <div>
+            <h3>Ringkasan Keuangan</h3>
+            <p>{filtered.length} transaksi pada periode ini</p>
+          </div>
+          <button type="button">
+            <CalendarDays size={18} />
+            {monthLabel}
+            <ChevronDown size={16} />
+          </button>
+        </div>
+        <div className="transaction-summary-body">
+          <TransactionSummaryItem
+            icon={ArrowDownLeft}
+            label="Masuk"
+            value={currency(totals.income)}
+            amount={totals.income}
+            maxAmount={maxTotal}
+            tone="income"
+          />
+          <TransactionSummaryItem
+            icon={ArrowUpRight}
+            label="Keluar"
+            value={currency(totals.expense)}
+            amount={totals.expense}
+            maxAmount={maxTotal}
+            tone="expense"
+          />
+          <TransactionSummaryItem
+            icon={Scale}
+            label="Neto"
+            value={currency(totals.net, true)}
+            amount={Math.abs(totals.net)}
+            maxAmount={maxTotal}
+            tone={totals.net < 0 ? "expense" : "income"}
+          />
+        </div>
+      </section>
 
-      <section className="panel">
-        <TransactionList transactions={filtered} onDelete={onDelete} />
+      <section className="panel transactions-list-panel">
+        <div className="transactions-filter-row">
+          <div className="segmented">
+            <button className={typeFilter === "all" ? "active" : ""} type="button" onClick={() => setTypeFilter("all")}>
+              Semua
+            </button>
+            <button
+              className={typeFilter === "income" ? "active" : ""}
+              type="button"
+              onClick={() => setTypeFilter("income")}
+            >
+              Masuk
+            </button>
+            <button
+              className={typeFilter === "expense" ? "active" : ""}
+              type="button"
+              onClick={() => setTypeFilter("expense")}
+            >
+              Keluar
+            </button>
+          </div>
+          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+            <option value="all">Semua kategori</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <TransactionList transactions={filtered} onDelete={onDelete} onEdit={onEdit} />
       </section>
     </section>
   );
 }
 
-function BudgetView({ transactions }: { transactions: Transaction[] }) {
+function TransactionSummaryItem({
+  icon: Icon,
+  label,
+  value,
+  amount,
+  maxAmount,
+  tone,
+}: {
+  icon: typeof Home;
+  label: string;
+  value: string;
+  amount: number;
+  maxAmount: number;
+  tone: "income" | "expense";
+}) {
+  const percent = amount > 0 ? Math.max(6, Math.round((amount / maxAmount) * 100)) : 0;
+  const trend = amount > 0 ? "100.0%" : "0.0%";
+
+  return (
+    <article className={`transaction-summary-item ${tone}`}>
+      <div className="transaction-summary-icon">
+        <Icon size={19} />
+      </div>
+      <div className="transaction-summary-copy">
+        <strong>{label}</strong>
+        <span>{value}</span>
+        <small>{trend} vs Mei 2026</small>
+      </div>
+      <div className="transaction-summary-progress" aria-label={`${label} ${percent}%`}>
+        <span style={{ width: `${percent}%` }} />
+      </div>
+    </article>
+  );
+}
+
+function BudgetView({
+  budgets,
+  transactions,
+  onUpdateBudget,
+}: {
+  budgets: Budget[];
+  transactions: Transaction[];
+  onUpdateBudget: (categoryId: string, amount: number) => void;
+}) {
   const expenseTotals = categoryTotals(transactions, "expense");
   const budgetRows = categories
     .filter((item) => item.kind === "expense" && item.budget !== undefined)
     .map((category) => {
       const spent = expenseTotals.find((item) => item.id === category.id)?.amount ?? 0;
-      const budget = category.budget ?? 0;
+      const budget = budgets.find((item) => item.categoryId === category.id)?.amount ?? category.budget ?? 0;
       const used = budget ? Math.round((spent / budget) * 100) : 0;
       return { ...category, spent, used, remaining: budget - spent };
     });
 
-  const totalBudget = budgetRows.reduce((sum, item) => sum + (item.budget ?? 0), 0);
+  const totalBudget = budgetRows.reduce((sum, item) => sum + item.remaining + item.spent, 0);
   const totalSpent = budgetRows.reduce((sum, item) => sum + item.spent, 0);
 
   return (
@@ -803,7 +1047,14 @@ function BudgetView({ transactions }: { transactions: Transaction[] }) {
             <CategoryTitle categoryId={item.id} />
             <div className="budget-values">
               <strong>{currency(item.spent)}</strong>
-              <span>{currency(item.budget ?? 0)}</span>
+              <label>
+                Budget
+                <input
+                  inputMode="numeric"
+                  value={rupiahInput(item.spent + item.remaining)}
+                  onChange={currencyInputChange((value) => onUpdateBudget(item.id, moneyValue(value)))}
+                />
+              </label>
             </div>
             <ProgressBar percent={item.used} color={item.color} />
             <small className={item.used >= 100 ? "danger-text" : item.used >= 80 ? "warning-text" : "muted"}>
@@ -876,28 +1127,99 @@ function ReportsView({
   );
 }
 
-function DebtsView({ debts, onPay }: { debts: Debt[]; onPay: (id: string) => void }) {
-  const activeDebt = debts.filter((item) => item.type === "debt").reduce((sum, item) => sum + item.remainingAmount, 0);
-  const activeReceivable = debts.filter((item) => item.type === "receivable").reduce((sum, item) => sum + item.remainingAmount, 0);
-  const dueSoon = debts.flatMap((item) => item.installments.filter((installment) => !installment.paid)).length;
+function DebtsView({
+  debts,
+  onAdd,
+  onDelete,
+  onEdit,
+  onPay,
+}: {
+  debts: Debt[];
+  onAdd: () => void;
+  onDelete: (id: string) => void;
+  onEdit: (debt: Debt) => void;
+  onPay: (id: string) => void;
+}) {
+  const debtRecords = debts.filter((item) => item.type === "debt");
+  const todayDate = today();
+  const sevenDaysFromNow = new Date(`${todayDate}T00:00:00`);
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  const dueLimit = sevenDaysFromNow.toISOString().slice(0, 10);
+  const activeDebt = debtRecords.reduce((sum, item) => sum + item.remainingAmount, 0);
+  const dueSoon = debtRecords.reduce((sum, debt) => {
+    const installmentAmount = debt.installments
+      .filter((installment) => !installment.paid && installment.dueDate >= todayDate && installment.dueDate <= dueLimit)
+      .reduce((subtotal, installment) => subtotal + installment.amount, 0);
+    const simpleDebtDue = debt.mode === "simple" && debt.dueDate && debt.dueDate >= todayDate && debt.dueDate <= dueLimit;
+    return sum + installmentAmount + (simpleDebtDue ? debt.remainingAmount : 0);
+  }, 0);
 
   return (
-    <section className="view-stack">
-      <div className="summary-grid flat">
-        <Metric icon={Landmark} label="Hutang aktif" value={currency(activeDebt)} tone="expense" />
-        <Metric icon={ArrowDownLeft} label="Piutang aktif" value={currency(activeReceivable)} tone="income" />
-        <Metric icon={CalendarDays} label="Cicilan terbuka" value={`${dueSoon}`} />
+    <section className="view-stack debts-view">
+      <div className="page-heading">
+        <div>
+          <h2>Hutang</h2>
+          <p>Cicilan, denda & kewajiban bayar</p>
+        </div>
+        <button className="primary-button light-button" type="button" onClick={onAdd}>
+          <Plus size={18} />
+          Tambah hutang
+        </button>
       </div>
+
+      <section className="debt-summary-hero">
+        <div className="debt-summary-main">
+          <span className="debt-summary-icon">
+            <Landmark size={24} />
+          </span>
+          <div>
+            <small>Total hutang aktif</small>
+            <strong>{currency(activeDebt)}</strong>
+            <span>{debtRecords.filter((debt) => debt.remainingAmount > 0).length} akun aktif</span>
+          </div>
+        </div>
+        <div className="debt-summary-grid">
+          <div>
+            <small>Terbayar</small>
+            <strong>{currency(debtRecords.reduce((sum, debt) => sum + Math.max(0, debt.originalAmount - debt.remainingAmount), 0))}</strong>
+          </div>
+          <div>
+            <small>7 hari</small>
+            <strong>{currency(dueSoon)}</strong>
+          </div>
+        </div>
+      </section>
+
       <section className="debt-list">
-        {debts.map((debt) => (
-          <DebtCard key={debt.id} debt={debt} onPay={() => onPay(debt.id)} />
-        ))}
+        {debtRecords.length ? (
+          debtRecords.map((debt) => (
+            <DebtCard
+              key={debt.id}
+              debt={debt}
+              onDelete={() => onDelete(debt.id)}
+              onEdit={() => onEdit(debt)}
+              onPay={() => onPay(debt.id)}
+            />
+          ))
+        ) : (
+          <div className="empty-state">Belum ada hutang aktif.</div>
+        )}
       </section>
     </section>
   );
 }
 
-function DebtCard({ debt, onPay }: { debt: Debt; onPay: () => void }) {
+function DebtCard({
+  debt,
+  onDelete,
+  onEdit,
+  onPay,
+}: {
+  debt: Debt;
+  onDelete: () => void;
+  onEdit: () => void;
+  onPay: () => void;
+}) {
   const paid = debt.originalAmount - debt.remainingAmount;
   const progress = Math.round((paid / debt.originalAmount) * 100);
   const next = debt.installments.find((item) => !item.paid);
@@ -913,22 +1235,47 @@ function DebtCard({ debt, onPay }: { debt: Debt; onPay: () => void }) {
     <article className="debt-card">
       <div className="debt-top">
         <div>
-          <span className={`status-pill ${debt.type === "receivable" ? "income-pill" : ""}`}>
-            {debt.type === "debt" ? "Hutang" : "Piutang"}
+          <span className="category-icon debt-card-icon">
+            <Landmark size={18} />
           </span>
-          <h2>{debt.name}</h2>
         </div>
-        <button className="primary-button" type="button" onClick={onPay} disabled={debt.remainingAmount <= 0}>
-          <Check size={18} />
-          Bayar
-        </button>
+        <div className="debt-card-title">
+          <h2>{debt.name}</h2>
+          <span className="status-pill debt-pill">Hutang</span>
+        </div>
+        <div className="debt-card-balance">
+          <strong>{currency(debt.remainingAmount)}</strong>
+          <span>sisa</span>
+        </div>
       </div>
-      <div className="debt-stats">
-        <Metric icon={CircleDollarSign} label="Total awal" value={currency(debt.originalAmount)} />
-        <Metric icon={ArrowUpRight} label="Sisa" value={currency(debt.remainingAmount)} tone="expense" />
-        <Metric icon={CalendarDays} label="Jatuh tempo" value={dueLabel} />
+      <p className="debt-next-due">Jatuh tempo berikutnya {next ? `#${next.id} · ${dateMonthDay(next.dueDate)}` : dueLabel}</p>
+      <p className="debt-card-copy">
+        Total hutang {currency(debt.originalAmount)}
+        {debt.monthlyAmount ? ` - ${currency(debt.monthlyAmount)} per bulan` : ""}{" "}
+        {debt.installments.length ? `- ${debt.installments.length} cicilan` : ""}
+      </p>
+      {(debt.finePaid ?? 0) > 0 && <p className="debt-fine">Denda terbayar {currency(debt.finePaid ?? 0)}</p>}
+      <div className="debt-progress-head">
+        <span>Progress pelunasan</span>
+        <strong>{progress}%</strong>
       </div>
       <ProgressBar percent={progress} color="#0f9f61" />
+      <div className="debt-actions">
+        <button className="primary-button" type="button" onClick={onPay} disabled={debt.remainingAmount <= 0}>
+          Bayar
+        </button>
+        <button className="icon-text-button" type="button" onClick={onEdit}>
+          <Pencil size={17} />
+          Edit
+        </button>
+        <button className="icon-button debt-toggle" type="button" aria-label="Tutup daftar cicilan">
+          <ChevronUp size={17} />
+        </button>
+      </div>
+      <button className="debt-delete-button" type="button" onClick={onDelete}>
+        <Trash2 size={15} />
+        Hapus catatan
+      </button>
       <div className="installment-list">
         {debt.installments.slice(0, 6).map((item) => (
           <div className="installment-row" key={item.id}>
@@ -947,13 +1294,15 @@ function MoreView({
   user,
   onNavigate,
   onLogout,
+  onResetData,
 }: {
   user: AppUser;
   onNavigate: (view: AppView) => void;
   onLogout: () => void;
+  onResetData: () => void;
 }) {
   const actions = [
-    { label: "Hutang/Piutang", icon: Landmark, view: "debts" as AppView },
+    { label: "Hutang", icon: Landmark, view: "debts" as AppView },
     { label: "Kategori", icon: LayoutGrid, view: "more" as AppView },
     { label: "Workspace", icon: Settings, view: "more" as AppView },
     { label: "Export data", icon: FileText, view: "transactions" as AppView },
@@ -982,6 +1331,10 @@ function MoreView({
           <LogOut size={22} />
           <span>Logout</span>
         </button>
+        <button type="button" onClick={onResetData}>
+          <Trash2 size={22} />
+          <span>Kosongkan data</span>
+        </button>
       </section>
     </section>
   );
@@ -1007,13 +1360,11 @@ function TransactionForm({
   const isCashTransaction = form.mode === "expense" || form.mode === "income";
   const isDebtCreation =
     form.mode === "debt" ||
-    form.mode === "receivable" ||
-    form.mode === "debt_installment" ||
-    form.mode === "receivable_installment";
-  const isInstallmentCreation = form.mode === "debt_installment" || form.mode === "receivable_installment";
+    form.mode === "debt_installment";
+  const isInstallmentCreation = form.mode === "debt_installment";
   const isPayment = form.mode === "payment";
   const availableCategories = categories.filter((item) => item.kind === form.type || item.kind === "both");
-  const activeDebts = debts.filter((debt) => debt.remainingAmount > 0);
+  const activeDebts = debts.filter((debt) => debt.type === "debt" && debt.remainingAmount > 0);
   const selectedDebt = activeDebts.find((debt) => debt.id === form.debtId) ?? activeDebts[0];
   const updateForm: React.Dispatch<React.SetStateAction<FormState>> = (value) => {
     onClearErrors();
@@ -1037,9 +1388,7 @@ function TransactionForm({
     { id: "expense", label: "Keluar", icon: ArrowUpRight },
     { id: "income", label: "Masuk", icon: ArrowDownLeft },
     { id: "debt", label: "Hutang", icon: Landmark },
-    { id: "receivable", label: "Piutang", icon: Wallet },
     { id: "debt_installment", label: "Cicilan Hutang", icon: CalendarDays },
-    { id: "receivable_installment", label: "Cicilan Piutang", icon: BadgePlus },
     { id: "payment", label: "Bayar", icon: Check },
   ];
 
@@ -1093,8 +1442,8 @@ function TransactionForm({
               <input
                 inputMode="numeric"
                 required
-                value={form.amount}
-                onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
+                value={rupiahInput(form.amount)}
+                onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, amount: value })))}
               />
             </label>
             <div className="form-grid">
@@ -1133,8 +1482,8 @@ function TransactionForm({
               <input
                 inputMode="numeric"
                 required
-                value={form.amount}
-                onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
+                value={rupiahInput(form.amount)}
+                onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, amount: value })))}
               />
             </label>
             <div className="form-grid">
@@ -1171,8 +1520,8 @@ function TransactionForm({
                   <input
                     inputMode="numeric"
                     required
-                    value={form.monthlyAmount}
-                    onChange={(event) => updateForm((current) => ({ ...current, monthlyAmount: event.target.value }))}
+                    value={rupiahInput(form.monthlyAmount)}
+                    onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, monthlyAmount: value })))}
                   />
                 </label>
                 <label>
@@ -1192,8 +1541,8 @@ function TransactionForm({
               Denda awal
               <input
                 inputMode="numeric"
-                value={form.fineAmount}
-                onChange={(event) => updateForm((current) => ({ ...current, fineAmount: event.target.value }))}
+                value={rupiahInput(form.fineAmount)}
+                onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, fineAmount: value })))}
               />
             </label>
           </>
@@ -1204,7 +1553,7 @@ function TransactionForm({
             {activeDebts.length ? (
               <>
                 <label>
-                  Hutang/Piutang
+                  Hutang
                   <select
                     required
                     value={form.debtId || selectedDebt?.id || ""}
@@ -1230,16 +1579,16 @@ function TransactionForm({
                     <input
                       inputMode="numeric"
                       required
-                      value={form.amount}
-                      onChange={(event) => updateForm((current) => ({ ...current, amount: event.target.value }))}
+                      value={rupiahInput(form.amount)}
+                      onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, amount: value })))}
                     />
                   </label>
                   <label>
                     Denda
                     <input
                       inputMode="numeric"
-                      value={form.fineAmount}
-                      onChange={(event) => updateForm((current) => ({ ...current, fineAmount: event.target.value }))}
+                      value={rupiahInput(form.fineAmount)}
+                      onChange={currencyInputChange((value) => updateForm((current) => ({ ...current, fineAmount: value })))}
                     />
                   </label>
                 </div>
@@ -1257,7 +1606,7 @@ function TransactionForm({
                 </label>
               </>
             ) : (
-              <div className="empty-state">Belum ada hutang atau piutang aktif.</div>
+              <div className="empty-state">Belum ada hutang aktif.</div>
             )}
           </>
         )}
@@ -1347,10 +1696,14 @@ function SectionHeader({
 function TransactionList({
   transactions,
   compact,
+  variant,
+  onEdit,
   onDelete,
 }: {
   transactions: Transaction[];
   compact?: boolean;
+  variant?: "home";
+  onEdit?: (transaction: Transaction) => void;
   onDelete?: (id: string) => void;
 }) {
   if (!transactions.length) {
@@ -1358,7 +1711,7 @@ function TransactionList({
   }
 
   return (
-    <div className={`transaction-list ${compact ? "compact" : ""}`}>
+    <div className={`transaction-list ${compact ? "compact" : ""} ${variant ? `transaction-list-${variant}` : ""}`}>
       {transactions.map((transaction) => (
         <article className="transaction-row" key={transaction.id}>
           <CategoryIcon categoryId={transaction.category} />
@@ -1372,6 +1725,11 @@ function TransactionList({
             {transaction.type === "income" ? "+" : "-"}
             {currency(transaction.amount)}
           </strong>
+          {onEdit && (
+            <button className="icon-button" type="button" onClick={() => onEdit(transaction)} aria-label="Edit">
+              <Pencil size={17} />
+            </button>
+          )}
           {onDelete && (
             <button className="icon-button" type="button" onClick={() => onDelete(transaction.id)} aria-label="Hapus">
               <Trash2 size={17} />
@@ -1383,11 +1741,11 @@ function TransactionList({
   );
 }
 
-function CategoryBreakdown({ items }: { items: ReturnType<typeof categoryTotals> }) {
+function CategoryBreakdown({ items, variant }: { items: ReturnType<typeof categoryTotals>; variant?: "home" }) {
   if (!items.length) return <div className="empty-state">Belum ada data kategori.</div>;
 
   return (
-    <div className="breakdown-list">
+    <div className={`breakdown-list ${variant ? `breakdown-list-${variant}` : ""}`}>
       {items.map((item) => (
         <div className="breakdown-row" key={item.id}>
           <div className="breakdown-head">

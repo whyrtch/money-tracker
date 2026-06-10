@@ -240,6 +240,58 @@ p {
   object-fit: cover;
 }
 
+.home-top-bar {
+  align-items: center;
+  padding-bottom: 18px;
+}
+
+.home-title-lockup {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
+}
+
+.home-title-lockup > div {
+  min-width: 0;
+}
+
+.home-title-lockup h1,
+.home-title-lockup p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-title-lockup h1 {
+  font-size: 1.34rem;
+  line-height: 1.1;
+}
+
+.home-title-lockup p {
+  margin-top: 4px;
+  color: #667568;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.home-top-bar .avatar-button {
+  border-radius: 999px;
+}
+
+.round-add-button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  color: #ffffff;
+  background: #0f9f61;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 12px 22px rgba(15, 159, 97, 0.24);
+}
+
 .nav-button {
   justify-content: flex-start;
   width: 100%;
@@ -261,6 +313,42 @@ p {
   gap: 18px;
 }
 
+.page-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.debts-view {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.debts-view .page-heading {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.page-heading h2 {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.page-heading p,
+.debt-card-copy,
+.debt-progress-head {
+  color: #667568;
+}
+
+.light-button {
+  color: #132018;
+  background: #ffffff;
+  border-color: #edf1ef;
+  box-shadow: 0 10px 22px rgba(26, 46, 35, 0.08);
+}
+
 .summary-hero,
 .panel,
 .debt-card {
@@ -268,6 +356,78 @@ p {
   border: 1px solid #dde7e1;
   border-radius: 8px;
   box-shadow: 0 12px 35px rgba(26, 46, 35, 0.07);
+}
+
+.debt-summary-hero {
+  display: grid;
+  gap: 20px;
+  padding: 20px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 78% 18%, rgba(255, 255, 255, 0.1), transparent 32%),
+    linear-gradient(135deg, #d4145a, #9f1746);
+  border-radius: 16px;
+  box-shadow: 0 18px 38px rgba(157, 24, 70, 0.24);
+}
+
+.debt-summary-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.debt-summary-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #c2185b;
+  background: #ffffff;
+  border-radius: 999px;
+}
+
+.debt-summary-main small,
+.debt-summary-main strong,
+.debt-summary-main span {
+  display: block;
+}
+
+.debt-summary-main strong {
+  margin-top: 4px;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.debt-summary-main span {
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.debt-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.debt-summary-grid > div {
+  display: grid;
+  gap: 6px;
+  min-height: 64px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+}
+
+.debt-summary-grid small {
+  opacity: 0.78;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .summary-hero {
@@ -458,11 +618,16 @@ p {
   border-color: #9bdcbb;
 }
 
-.content-grid,
-.debt-list {
+.content-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
+}
+
+.debt-list {
+  display: grid;
+  gap: 14px;
+  max-width: 720px;
 }
 
 .panel {
@@ -492,6 +657,256 @@ p {
   background: #e9f7ef;
 }
 
+.home-view {
+  width: min(620px, 100%);
+  margin: 0 auto;
+  gap: 22px;
+}
+
+.home-section {
+  display: grid;
+  gap: 12px;
+}
+
+.home-section .section-header {
+  margin-bottom: 0;
+}
+
+.home-section .section-header h2 {
+  font-size: 1.08rem;
+}
+
+.home-section .section-header button {
+  min-height: auto;
+  padding: 0;
+  color: #0f8051;
+  background: transparent;
+  border: 0;
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.home-category-card {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #edf1ef;
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgba(26, 46, 35, 0.08);
+}
+
+.home-category-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 2px;
+}
+
+.home-category-total span {
+  color: #667568;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.home-category-total strong {
+  color: #c2185b;
+  font-size: 1.18rem;
+}
+
+.transactions-view {
+  gap: 20px;
+}
+
+.transactions-heading {
+  display: grid;
+  gap: 8px;
+}
+
+.transactions-heading h2 {
+  color: #0d111b;
+  font-size: clamp(2.2rem, 7vw, 3.3rem);
+  line-height: 1;
+}
+
+.transactions-heading p {
+  color: #667568;
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.transactions-action-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.transactions-action-row > span {
+  padding: 0 14px;
+  font-weight: 900;
+}
+
+.transaction-export-button,
+.transaction-add-button {
+  min-height: 54px;
+  border-radius: 14px;
+  font-size: 1rem;
+}
+
+.transaction-export-button {
+  padding-inline: 22px;
+  border-color: transparent;
+  box-shadow: 0 12px 28px rgba(26, 46, 35, 0.08);
+}
+
+.transaction-add-button {
+  padding-inline: 22px;
+}
+
+.transaction-summary-card {
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #edf1ef;
+  border-radius: 18px;
+  box-shadow: 0 16px 42px rgba(26, 46, 35, 0.1);
+}
+
+.transaction-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid #edf1ef;
+}
+
+.transaction-summary-head h3 {
+  margin: 0;
+  color: #111722;
+  font-size: 1.28rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.transaction-summary-head p {
+  margin-top: 6px;
+  color: #667568;
+  font-weight: 700;
+}
+
+.transaction-summary-head button {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 16px;
+  color: #26352b;
+  background: #f1f3f6;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 900;
+}
+
+.transaction-summary-body {
+  display: grid;
+  gap: 28px;
+  padding: 28px 30px;
+}
+
+.transaction-summary-item {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 0 16px;
+}
+
+.transaction-summary-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 10px;
+}
+
+.transaction-summary-item.income .transaction-summary-icon {
+  color: #0f9f61;
+  background: #e1f8ec;
+}
+
+.transaction-summary-item.expense .transaction-summary-icon {
+  color: #c2185b;
+  background: #ffe5e8;
+}
+
+.transaction-summary-copy {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.transaction-summary-copy strong {
+  color: #0f9f61;
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.transaction-summary-item.expense .transaction-summary-copy strong,
+.transaction-summary-item.expense .transaction-summary-copy small {
+  color: #c2185b;
+}
+
+.transaction-summary-copy span {
+  overflow-wrap: anywhere;
+  color: #0d111b;
+  font-size: 1.9rem;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.transaction-summary-copy small {
+  color: #0f9f61;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.transaction-summary-copy small::before {
+  content: "↗ ";
+}
+
+.transaction-summary-progress {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  height: 7px;
+  margin-top: 22px;
+  background: #edf1ef;
+  border-radius: 999px;
+}
+
+.transaction-summary-progress span {
+  display: block;
+  height: 100%;
+  background: #0f9f61;
+  border-radius: inherit;
+}
+
+.transaction-summary-item.expense .transaction-summary-progress span {
+  background: #c2185b;
+}
+
+.transactions-list-panel {
+  padding: 14px;
+}
+
+.transactions-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
 .transaction-list,
 .breakdown-list,
 .installment-list,
@@ -502,7 +917,7 @@ p {
 
 .transaction-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 12px;
   min-height: 62px;
@@ -518,6 +933,58 @@ p {
 
 .transaction-list.compact .icon-button {
   display: none;
+}
+
+.transaction-list-home {
+  gap: 8px;
+}
+
+.transaction-list-home .transaction-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 62px;
+  padding: 8px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.transaction-list-home .transaction-row + .transaction-row {
+  border-top: 1px solid #edf1ef;
+}
+
+.transaction-list-home .category-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+}
+
+.transaction-list-home .transaction-copy strong {
+  font-size: 0.98rem;
+}
+
+.transaction-list-home .transaction-copy span {
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
+.transaction-list-home .amount-expense,
+.transaction-list-home .amount-income {
+  justify-self: end;
+  max-width: 136px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.transaction-list-home .amount-expense {
+  background: #ffe5e8;
+}
+
+.transaction-list-home .amount-income {
+  background: #e1f8ec;
 }
 
 .transaction-copy {
@@ -548,6 +1015,7 @@ p {
 .category-title,
 .budget-values,
 .debt-top,
+.debt-actions,
 .installment-row,
 .account-panel {
   display: flex;
@@ -560,6 +1028,65 @@ p {
 .debt-top,
 .installment-row {
   justify-content: space-between;
+}
+
+.breakdown-list-home {
+  gap: 16px;
+}
+
+.breakdown-list-home .breakdown-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  row-gap: 8px;
+}
+
+.breakdown-list-home .breakdown-head {
+  grid-column: 1 / -1;
+}
+
+.breakdown-list-home .breakdown-head > strong {
+  color: #132018;
+  font-size: 0.94rem;
+}
+
+.breakdown-list-home .category-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+}
+
+.breakdown-list-home .category-title span {
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.breakdown-list-home .progress-bar {
+  align-self: center;
+}
+
+.breakdown-list-home .breakdown-row small {
+  align-self: center;
+  color: #6b766e;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.debt-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.budget-values label {
+  display: grid;
+  gap: 4px;
+  min-width: 140px;
+  color: #667568;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.budget-values input {
+  min-height: 36px;
 }
 
 .category-title {
@@ -648,13 +1175,122 @@ textarea {
 
 .debt-card {
   display: grid;
-  gap: 16px;
-  padding: 18px;
+  gap: 12px;
+  padding: 16px;
+  border-color: #edf1ef;
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(26, 46, 35, 0.08);
+}
+
+.debt-card-icon {
+  color: #c2185b;
+  background: #ffe2ee;
+  width: 42px;
+  height: 42px;
 }
 
 .debt-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.debt-card-title {
+  min-width: 0;
+}
+
+.debt-card-title h2 {
+  display: inline;
+  margin-right: 8px;
+}
+
+.debt-pill {
+  color: #c2185b;
+  background: #ffe2ee;
+}
+
+.debt-card-balance {
+  margin-left: auto;
+  text-align: right;
+}
+
+.debt-card-balance strong,
+.debt-card-balance span {
+  display: block;
+}
+
+.debt-card-balance span {
+  margin-top: 2px;
+  color: #667568;
+  font-size: 0.72rem;
+}
+
+.debt-card-copy,
+.debt-fine,
+.debt-progress-head,
+.debt-next-due {
+  font-size: 0.86rem;
+}
+
+.debt-card-copy {
+  margin-left: 52px;
+}
+
+.debt-fine {
+  margin-left: 52px;
+  color: #c2185b;
+  font-weight: 800;
+}
+
+.debt-next-due {
+  margin-left: 52px;
+  color: #667568;
+}
+
+.debt-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-left: 52px;
+}
+
+.debt-card > .progress-bar {
+  width: calc(100% - 52px);
+  margin-left: 52px;
+}
+
+.debt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.debt-actions .primary-button,
+.debt-actions .icon-text-button,
+.debt-actions .icon-button {
+  min-height: 44px;
+  width: 100%;
+}
+
+.debt-toggle {
+  justify-self: stretch;
+}
+
+.debt-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 0 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #c2185b;
+  background: transparent;
+  border: 0;
+  font-size: 0.82rem;
+  font-weight: 900;
 }
 
 .installment-row {
@@ -792,30 +1428,67 @@ textarea {
   }
 
   .app-main {
-    padding: 16px 14px 92px;
+    padding: 16px 14px 118px;
   }
 
   .bottom-nav {
     position: fixed;
     z-index: 40;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    right: 16px;
+    bottom: 18px;
+    left: 16px;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
-    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
-    background: rgba(255, 255, 255, 0.96);
-    border-top: 1px solid #dfe8e4;
-    backdrop-filter: blur(12px);
+    width: min(390px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 9px 12px calc(9px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(223, 232, 228, 0.92);
+    border-radius: 999px;
+    box-shadow: 0 18px 44px rgba(19, 32, 24, 0.18);
+    backdrop-filter: blur(18px);
   }
 
   .bottom-nav .nav-button {
     display: grid;
     justify-items: center;
-    min-height: 52px;
-    padding: 4px;
-    font-size: 0.72rem;
+    min-height: 46px;
+    padding: 0;
+    color: #667568;
+    background: transparent;
+    border: 0;
+    font-size: 0.68rem;
+    font-weight: 800;
+  }
+
+  .bottom-nav .nav-button span {
+    display: none;
+  }
+
+  .bottom-nav .nav-button svg {
+    box-sizing: border-box;
+    width: 38px;
+    height: 38px;
+    padding: 9px;
+    color: #68766d;
+    border-radius: 999px;
+    transition:
+      background 0.18s ease,
+      color 0.18s ease,
+      transform 0.18s ease;
+  }
+
+  .bottom-nav .nav-button.active {
+    color: #0f7d4e;
+    background: transparent;
+  }
+
+  .bottom-nav .nav-button.active svg {
+    color: #ffffff;
+    background: #0f9f61;
+    box-shadow: 0 10px 20px rgba(15, 159, 97, 0.28);
+    transform: translateY(-5px);
   }
 
   .top-bar h1 {
@@ -837,6 +1510,18 @@ textarea {
   .summary-main h2 {
     font-size: 2.2rem;
   }
+
+  .transactions-view {
+    gap: 18px;
+  }
+
+  .transactions-heading h2 {
+    font-size: 2.6rem;
+  }
+
+  .transaction-summary-card {
+    border-radius: 18px;
+  }
 }
 
 @media (max-width: 680px) {
@@ -848,6 +1533,87 @@ textarea {
 }
 
 @media (max-width: 560px) {
+  .home-title-lockup {
+    gap: 10px;
+  }
+
+  .home-title-lockup h1 {
+    font-size: 1.26rem;
+  }
+
+  .home-title-lockup p {
+    font-size: 0.78rem;
+  }
+
+  .round-add-button,
+  .home-top-bar .avatar-button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .transactions-heading h2 {
+    font-size: 2.35rem;
+  }
+
+  .transactions-heading p {
+    font-size: 1rem;
+  }
+
+  .transactions-action-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .transactions-action-row > span {
+    padding: 0 2px;
+  }
+
+  .transaction-export-button,
+  .transaction-add-button {
+    min-height: 50px;
+    padding-inline: 12px;
+    border-radius: 14px;
+  }
+
+  .transaction-summary-head {
+    align-items: flex-start;
+    padding: 16px 14px;
+  }
+
+  .transaction-summary-head h3 {
+    font-size: 1.08rem;
+  }
+
+  .transaction-summary-head p {
+    font-size: 0.82rem;
+  }
+
+  .transaction-summary-head button {
+    min-height: 42px;
+    padding: 0 9px;
+    gap: 7px;
+    font-size: 0.84rem;
+  }
+
+  .transaction-summary-body {
+    gap: 24px;
+    padding: 28px 28px;
+  }
+
+  .transaction-summary-item {
+    grid-template-columns: 50px minmax(0, 1fr);
+    column-gap: 10px;
+  }
+
+  .transaction-summary-copy span {
+    font-size: 1.75rem;
+  }
+
+  .transactions-filter-row {
+    grid-template-columns: 1fr;
+  }
+
   .top-actions .primary-button span {
     display: none;
   }
@@ -870,8 +1636,17 @@ textarea {
     justify-self: start;
   }
 
+  .transaction-list-home .transaction-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .transaction-list-home .transaction-row > strong {
+    grid-column: auto;
+    justify-self: end;
+  }
+
   .transaction-row .icon-button {
-    grid-column: 2;
+    grid-column: auto;
     justify-self: start;
   }
 
