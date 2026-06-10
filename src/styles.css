@@ -716,23 +716,23 @@ p {
 }
 
 .transactions-view {
-  gap: 20px;
+  gap: 18px;
 }
 
 .transactions-heading {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .transactions-heading h2 {
   color: #0d111b;
-  font-size: clamp(2.2rem, 7vw, 3.3rem);
-  line-height: 1;
+  font-size: clamp(1.8rem, 4vw, 2.15rem);
+  line-height: 1.08;
 }
 
 .transactions-heading p {
   color: #667568;
-  font-size: 1.08rem;
+  font-size: 0.96rem;
   font-weight: 700;
 }
 
@@ -744,25 +744,26 @@ p {
 }
 
 .transactions-action-row > span {
-  padding: 0 14px;
-  font-weight: 900;
+  padding: 0 10px;
+  font-size: 0.92rem;
+  font-weight: 800;
 }
 
 .transaction-export-button,
 .transaction-add-button {
-  min-height: 54px;
-  border-radius: 14px;
-  font-size: 1rem;
+  min-height: 46px;
+  border-radius: 10px;
+  font-size: 0.92rem;
 }
 
 .transaction-export-button {
-  padding-inline: 22px;
+  padding-inline: 18px;
   border-color: transparent;
   box-shadow: 0 12px 28px rgba(26, 46, 35, 0.08);
 }
 
 .transaction-add-button {
-  padding-inline: 22px;
+  padding-inline: 18px;
 }
 
 .transaction-summary-card {
@@ -778,21 +779,22 @@ p {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 18px 16px;
+  padding: 16px;
   border-bottom: 1px solid #edf1ef;
 }
 
 .transaction-summary-head h3 {
   margin: 0;
   color: #111722;
-  font-size: 1.28rem;
+  font-size: 1.1rem;
   line-height: 1.1;
   white-space: nowrap;
 }
 
 .transaction-summary-head p {
-  margin-top: 6px;
+  margin-top: 5px;
   color: #667568;
+  font-size: 0.88rem;
   font-weight: 700;
 }
 
@@ -800,32 +802,33 @@ p {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 16px;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
   color: #26352b;
   background: #f1f3f6;
   border: 0;
   border-radius: 10px;
-  font-weight: 900;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .transaction-summary-body {
   display: grid;
-  gap: 28px;
-  padding: 28px 30px;
+  gap: 22px;
+  padding: 22px 24px;
 }
 
 .transaction-summary-item {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 0 16px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 0 14px;
 }
 
 .transaction-summary-icon {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border-radius: 10px;
 }
@@ -843,12 +846,12 @@ p {
 .transaction-summary-copy {
   display: grid;
   min-width: 0;
-  gap: 8px;
+  gap: 6px;
 }
 
 .transaction-summary-copy strong {
   color: #0f9f61;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
@@ -861,26 +864,26 @@ p {
 .transaction-summary-copy span {
   overflow-wrap: anywhere;
   color: #0d111b;
-  font-size: 1.9rem;
-  font-weight: 950;
+  font-size: 1.48rem;
+  font-weight: 900;
   line-height: 1.05;
 }
 
 .transaction-summary-copy small {
   color: #0f9f61;
-  font-size: 0.9rem;
-  font-weight: 900;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .transaction-summary-copy small::before {
-  content: "↗ ";
+  content: "";
 }
 
 .transaction-summary-progress {
   grid-column: 1 / -1;
   overflow: hidden;
-  height: 7px;
-  margin-top: 22px;
+  height: 6px;
+  margin-top: 16px;
   background: #edf1ef;
   border-radius: 999px;
 }
@@ -1512,11 +1515,11 @@ textarea {
   }
 
   .transactions-view {
-    gap: 18px;
+    gap: 16px;
   }
 
   .transactions-heading h2 {
-    font-size: 2.6rem;
+    font-size: 1.95rem;
   }
 
   .transaction-summary-card {
@@ -1552,11 +1555,11 @@ textarea {
   }
 
   .transactions-heading h2 {
-    font-size: 2.35rem;
+    font-size: 1.75rem;
   }
 
   .transactions-heading p {
-    font-size: 1rem;
+    font-size: 0.92rem;
   }
 
   .transactions-action-row {
@@ -1571,43 +1574,43 @@ textarea {
 
   .transaction-export-button,
   .transaction-add-button {
-    min-height: 50px;
-    padding-inline: 12px;
-    border-radius: 14px;
+    min-height: 44px;
+    padding-inline: 10px;
+    border-radius: 10px;
   }
 
   .transaction-summary-head {
     align-items: flex-start;
-    padding: 16px 14px;
+    padding: 14px;
   }
 
   .transaction-summary-head h3 {
-    font-size: 1.08rem;
+    font-size: 1rem;
   }
 
   .transaction-summary-head p {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
   }
 
   .transaction-summary-head button {
-    min-height: 42px;
+    min-height: 38px;
     padding: 0 9px;
-    gap: 7px;
-    font-size: 0.84rem;
+    gap: 6px;
+    font-size: 0.8rem;
   }
 
   .transaction-summary-body {
-    gap: 24px;
-    padding: 28px 28px;
+    gap: 20px;
+    padding: 20px;
   }
 
   .transaction-summary-item {
-    grid-template-columns: 50px minmax(0, 1fr);
+    grid-template-columns: 44px minmax(0, 1fr);
     column-gap: 10px;
   }
 
   .transaction-summary-copy span {
-    font-size: 1.75rem;
+    font-size: 1.34rem;
   }
 
   .transactions-filter-row {
