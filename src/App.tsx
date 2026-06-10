@@ -727,7 +727,7 @@ function NavButton({
 }) {
   const Icon = item.icon;
   return (
-    <button className={`nav-button ${active ? "active" : ""}`} type="button" onClick={onClick}>
+    <button className={`nav-button ${active ? "active" : ""}`} type="button" onClick={onClick} aria-label={item.label}>
       <Icon size={20} />
       <span>{item.label}</span>
     </button>

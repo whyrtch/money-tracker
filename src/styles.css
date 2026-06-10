@@ -1452,9 +1452,8 @@ textarea {
 
   .bottom-nav .nav-button {
     display: grid;
-    gap: 3px;
     justify-items: center;
-    min-height: 48px;
+    min-height: 46px;
     padding: 0;
     color: #667568;
     background: transparent;
@@ -1463,11 +1462,15 @@ textarea {
     font-weight: 800;
   }
 
+  .bottom-nav .nav-button span {
+    display: none;
+  }
+
   .bottom-nav .nav-button svg {
     box-sizing: border-box;
-    width: 34px;
-    height: 34px;
-    padding: 8px;
+    width: 38px;
+    height: 38px;
+    padding: 9px;
     color: #68766d;
     border-radius: 999px;
     transition:
