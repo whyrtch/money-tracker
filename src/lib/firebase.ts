@@ -1,6 +1,16 @@
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, type Auth } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  getAuth,
+  getRedirectResult,
+  GoogleAuthProvider,
+  setPersistence,
+  signInWithRedirect,
+  signOut,
+  type Auth,
+  type User,
+} from "firebase/auth";
 import type { AppUser } from "../types";
 
 const firebaseConfig = {
@@ -37,7 +47,27 @@ export const getFirebaseAuth = () => {
   return auth;
 };
 
-export const signInWithGoogle = async (): Promise<AppUser> => {
+const googleProvider = () => {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  return provider;
+};
+
+const toAppUser = (user: User): AppUser => ({
+  uid: user.uid,
+  name: user.displayName ?? "User",
+  email: user.email ?? "",
+  photoURL: user.photoURL ?? undefined,
+});
+
+export const completeGoogleRedirect = async (): Promise<AppUser | null> => {
+  const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) return null;
+  const result = await getRedirectResult(firebaseAuth);
+  return result?.user ? toAppUser(result.user) : null;
+};
+
+export const signInWithGoogle = async (): Promise<AppUser | null> => {
   const firebaseAuth = getFirebaseAuth();
   if (!firebaseAuth) {
     return {
@@ -48,15 +78,9 @@ export const signInWithGoogle = async (): Promise<AppUser> => {
     };
   }
 
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account" });
-  const result = await signInWithPopup(firebaseAuth, provider);
-  return {
-    uid: result.user.uid,
-    name: result.user.displayName ?? "User",
-    email: result.user.email ?? "",
-    photoURL: result.user.photoURL ?? undefined,
-  };
+  await setPersistence(firebaseAuth, browserLocalPersistence);
+  await signInWithRedirect(firebaseAuth, googleProvider());
+  return null;
 };
 
 export const logout = async () => {

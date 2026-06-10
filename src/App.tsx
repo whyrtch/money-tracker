@@ -49,7 +49,7 @@ import {
   transactionTotals,
   workspaceName,
 } from "./data";
-import { hasFirebaseConfig, logout, signInWithGoogle } from "./lib/firebase";
+import { completeGoogleRedirect, hasFirebaseConfig, logout, signInWithGoogle } from "./lib/firebase";
 import type { AppState, AppUser, AppView, Budget, Debt, Transaction, TransactionType } from "./types";
 
 type FormMode =
@@ -258,6 +258,7 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [authError, setAuthError] = useState("");
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
@@ -280,14 +281,41 @@ function App() {
     }
   }, [user]);
 
+  useEffect(() => {
+    let cancelled = false;
+    completeGoogleRedirect()
+      .then((signedInUser) => {
+        if (!cancelled && signedInUser) {
+          setAuthError("");
+          setUser(signedInUser);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAuthError("Login Google gagal. Coba ulangi dari halaman login.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const startSignIn = async () => {
-    const signedInUser = await signInWithGoogle();
-    setUser(signedInUser);
+    setAuthError("");
+    try {
+      const signedInUser = await signInWithGoogle();
+      if (signedInUser) setUser(signedInUser);
+    } catch {
+      setAuthError("Login Google gagal. Coba ulangi dari halaman login.");
+    }
   };
 
   const startLogout = async () => {
-    await logout();
-    setUser(null);
+    try {
+      await logout();
+    } finally {
+      setUser(null);
+      setView("home");
+      setShowForm(false);
+    }
   };
 
   const resetDemoData = () => {
@@ -544,7 +572,7 @@ function App() {
   };
 
   if (!user) {
-    return <LoginScreen onLogin={startSignIn} />;
+    return <LoginScreen authError={authError} onLogin={startSignIn} />;
   }
 
   return (
@@ -624,7 +652,7 @@ function App() {
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
+function LoginScreen({ authError, onLogin }: { authError: string; onLogin: () => void }) {
   return (
     <main className="login-screen">
       <section className="login-panel">
@@ -636,6 +664,11 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             Mulai dari data kosong untuk transaksi, budget, laporan, dan hutang.
           </p>
         </div>
+        {authError && (
+          <div className="form-errors" role="alert" aria-live="polite">
+            <p>{authError}</p>
+          </div>
+        )}
         <button className="primary-button large-button" type="button" onClick={onLogin}>
           <CircleDollarSign size={20} />
           {hasFirebaseConfig ? "Login Google" : "Masuk Mode Demo"}
