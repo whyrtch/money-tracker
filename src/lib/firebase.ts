@@ -7,7 +7,6 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
-  signInWithPopup,
   signInWithRedirect,
   signOut,
   type Auth,
@@ -90,17 +89,8 @@ export const signInWithGoogle = async (): Promise<AppUser | null> => {
   }
 
   await setPersistence(firebaseAuth, browserLocalPersistence);
-  try {
-    const result = await signInWithPopup(firebaseAuth, googleProvider());
-    return toAppUser(result.user);
-  } catch (error) {
-    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
-    if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
-      await signInWithRedirect(firebaseAuth, googleProvider());
-      return null;
-    }
-    throw error;
-  }
+  await signInWithRedirect(firebaseAuth, googleProvider());
+  return null;
 };
 
 export const logout = async () => {
