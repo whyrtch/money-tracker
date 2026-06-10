@@ -77,6 +77,20 @@ export const subscribeToAuthUser = (callback: (user: AppUser | null) => void): U
   });
 };
 
+export const getCurrentAuthUser = (): AppUser | null => {
+  const firebaseAuth = getFirebaseAuth();
+  return firebaseAuth?.currentUser ? toAppUser(firebaseAuth.currentUser) : null;
+};
+
+export const authErrorMessage = (error: unknown) => {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  const message = typeof error === "object" && error && "message" in error ? String(error.message) : "";
+  if (code === "auth/unauthorized-domain") return "Domain localhost belum diizinkan di Firebase Authentication.";
+  if (code === "auth/popup-closed-by-user") return "Login Google dibatalkan sebelum selesai.";
+  if (code === "auth/network-request-failed") return "Koneksi ke Firebase gagal. Periksa internet lalu coba lagi.";
+  return code || message ? `Login Google gagal (${code || message}).` : "Login Google gagal. Coba ulangi dari halaman login.";
+};
+
 export const signInWithGoogle = async (): Promise<AppUser | null> => {
   const firebaseAuth = getFirebaseAuth();
   if (!firebaseAuth) {

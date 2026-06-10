@@ -49,7 +49,15 @@ import {
   transactionTotals,
   workspaceName,
 } from "./data";
-import { completeGoogleRedirect, hasFirebaseConfig, logout, signInWithGoogle, subscribeToAuthUser } from "./lib/firebase";
+import {
+  authErrorMessage,
+  completeGoogleRedirect,
+  getCurrentAuthUser,
+  hasFirebaseConfig,
+  logout,
+  signInWithGoogle,
+  subscribeToAuthUser,
+} from "./lib/firebase";
 import type { AppState, AppUser, AppView, Budget, Debt, Transaction, TransactionType } from "./types";
 
 type FormMode =
@@ -259,6 +267,7 @@ function App() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [authError, setAuthError] = useState("");
+  const [authReady, setAuthReady] = useState(!hasFirebaseConfig);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [editingDebtId, setEditingDebtId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
@@ -283,21 +292,32 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const unsubscribe = subscribeToAuthUser((signedInUser) => {
-      if (cancelled) return;
-      setAuthError("");
-      setUser(signedInUser);
-    });
+    let unsubscribe: ReturnType<typeof subscribeToAuthUser> = null;
+
+    const attachAuthListener = () => {
+      unsubscribe = subscribeToAuthUser((signedInUser) => {
+        if (cancelled) return;
+        setAuthError("");
+        setUser(signedInUser);
+        setAuthReady(true);
+      });
+      if (!unsubscribe) setAuthReady(true);
+    };
 
     completeGoogleRedirect()
       .then((signedInUser) => {
-        if (!cancelled && signedInUser) {
+        if (cancelled) return;
+        const currentUser = signedInUser ?? getCurrentAuthUser();
+        if (currentUser) {
           setAuthError("");
-          setUser(signedInUser);
+          setUser(currentUser);
         }
+        attachAuthListener();
       })
-      .catch(() => {
-        if (!cancelled) setAuthError("Login Google gagal. Coba ulangi dari halaman login.");
+      .catch((error) => {
+        if (cancelled) return;
+        setAuthError(authErrorMessage(error));
+        attachAuthListener();
       });
     return () => {
       cancelled = true;
@@ -310,8 +330,8 @@ function App() {
     try {
       const signedInUser = await signInWithGoogle();
       if (signedInUser) setUser(signedInUser);
-    } catch {
-      setAuthError("Login Google gagal. Coba ulangi dari halaman login.");
+    } catch (error) {
+      setAuthError(authErrorMessage(error));
     }
   };
 
@@ -579,7 +599,7 @@ function App() {
   };
 
   if (!user) {
-    return <LoginScreen authError={authError} onLogin={startSignIn} />;
+    return <LoginScreen authError={authError} authReady={authReady} onLogin={startSignIn} />;
   }
 
   return (
@@ -659,7 +679,7 @@ function App() {
   );
 }
 
-function LoginScreen({ authError, onLogin }: { authError: string; onLogin: () => void }) {
+function LoginScreen({ authError, authReady, onLogin }: { authError: string; authReady: boolean; onLogin: () => void }) {
   return (
     <main className="login-screen">
       <section className="login-panel">
@@ -676,9 +696,9 @@ function LoginScreen({ authError, onLogin }: { authError: string; onLogin: () =>
             <p>{authError}</p>
           </div>
         )}
-        <button className="primary-button large-button" type="button" onClick={onLogin}>
+        <button className="primary-button large-button" type="button" onClick={onLogin} disabled={!authReady}>
           <CircleDollarSign size={20} />
-          {hasFirebaseConfig ? "Login Google" : "Masuk Mode Demo"}
+          {!authReady ? "Menyiapkan login..." : hasFirebaseConfig ? "Login Google" : "Masuk Mode Demo"}
         </button>
       </section>
     </main>
